@@ -46,7 +46,7 @@
     enable = true;
     extraConfig = builtins.readFile ./tmux/tmux.conf + ''
 
-      run-shell ${pkgs.tmuxPlugins.tmux-nvim.rtp}
+      run-shell ${pkgs.vimPlugins.tmux-nvim}/tmux.nvim.tmux
     '';
   };
 
