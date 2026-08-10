@@ -1,0 +1,31 @@
+format = """$directory$git_branch$git_status$cmd_duration
+$character"""
+
+[directory]
+truncation_length = 3
+truncation_symbol = ".../"
+
+[git_branch]
+format = "[$symbol$branch]($style) "
+symbol = "|"
+
+[git_status]
+format = '([$all_status$ahead_behind]($style) )'
+conflicted = "!"
+ahead = ">"
+behind = "<"
+diverged = "<>"
+untracked = "?"
+stashed = "$"
+modified = "*"
+staged = "+"
+renamed = "r"
+deleted = "x"
+
+[character]
+success_symbol = "[>](bold)"
+error_symbol = "[>](bold red)"
+
+[cmd_duration]
+min_time = 2000
+format = "[$duration]($style) "

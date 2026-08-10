@@ -1,0 +1,65 @@
+codesession() {
+  if [[ -z "$1" ]]; then
+    echo "Please provide a project name"
+    return 1
+  fi
+
+  local project_name="$1"
+  local work_base_dir=~/code/work
+  local personal_dir=~/code/personal/$project_name
+  local project_dir
+
+  project_dir=$(find "$work_base_dir" -maxdepth 2 -type d -name "$project_name" 2>/dev/null | head -1)
+
+  if [[ -z "$project_dir" ]]; then
+    if [[ -d "$personal_dir" ]]; then
+      project_dir="$personal_dir"
+    else
+      echo "Project not found in ~/code/work or ~/code/personal/"
+      return 1
+    fi
+  fi
+
+  if tmux has-session -t "$project_name" 2>/dev/null; then
+    echo "Session '$project_name' already exists"
+    read "confirm?Do you want to attach to it? [y/N] "
+    case "$confirm" in
+      [yY]) tmux attach -t "$project_name"; return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
+
+  local dev_command=""
+  if [[ -f "$project_dir/bun.lockb" ]]; then
+    dev_command="bun dev"
+  elif [[ -f "$project_dir/pnpm-lock.yaml" ]]; then
+    dev_command="pnpm dev"
+  elif [[ -f "$project_dir/package-lock.json" ]]; then
+    dev_command="npm run dev"
+  fi
+
+  # Run programs as the pane's startup command instead of send-keys: zsh's
+  # startup (starship, plugins, vi-mode) isn't ready when send-keys fires, so
+  # the keystrokes get dropped. `exec $SHELL` keeps an interactive shell after
+  # the program exits, preserving the old behavior.
+  local shell="${SHELL:-zsh}"
+
+  tmux new-session -d -s "$project_name" -c "$project_dir" -n vim "nvim; exec $shell"
+
+  tmux new-window -t "$project_name" -c "$project_dir" -n term
+
+  # Same cd-on-exit trick as the lg() function in .zshrc, inlined because tmux
+  # runs window commands via `sh -c` where shell functions aren't available.
+  # The exec'd shell inherits the cwd lazygit ended up in (repo/worktree).
+  local lg_cmd='export LAZYGIT_NEW_DIR_FILE=~/.lazygit/newdir; mkdir -p ~/.lazygit; lazygit; if [ -f "$LAZYGIT_NEW_DIR_FILE" ]; then cd "$(cat "$LAZYGIT_NEW_DIR_FILE")"; rm -f "$LAZYGIT_NEW_DIR_FILE"; fi; exec '"$shell"
+  tmux new-window -t "$project_name" -c "$project_dir" -n lazygit "$lg_cmd"
+
+  if [[ -n "$dev_command" ]]; then
+    tmux new-window -t "$project_name" -c "$project_dir" -n console "$dev_command; exec $shell"
+  else
+    tmux new-window -t "$project_name" -c "$project_dir" -n console
+  fi
+
+  tmux select-window -t "$project_name:vim"
+  tmux switch-client -t "$project_name"
+}

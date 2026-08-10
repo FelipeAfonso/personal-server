@@ -1,0 +1,15 @@
+# Recipients for the private secrets repo (this file is the template the
+# secrets repo copies — kept here so the public repo documents the scheme).
+#
+# Generate your personal key:      age-keygen -o ~/.config/sops/age/keys.txt
+# Derive rlyeh's key after install: ssh-keyscan rlyeh | ssh-to-age
+keys:
+  - &felipe age1REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+  - &rlyeh age1REPLACE_WITH_RLYEH_HOST_KEY_AFTER_INSTALL
+creation_rules:
+  - path_regex: rlyeh\.yaml$
+    key_groups:
+      - age: [ *felipe, *rlyeh ]
+  - path_regex: .*
+    key_groups:
+      - age: [ *felipe ]

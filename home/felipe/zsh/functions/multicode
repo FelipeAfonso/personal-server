@@ -1,0 +1,46 @@
+multicode() {
+  if (( $# < 2 )); then
+    echo "Usage: multicode proj1 proj2 [proj3 ...]"
+    return 1
+  fi
+
+  local session_name="vibes"
+  local work_base_dir=~/code/work
+  local -a project_dirs
+
+  for project_name in "$@"; do
+    local personal_dir=~/code/personal/$project_name
+    local project_dir
+    project_dir=$(find "$work_base_dir" -maxdepth 2 -type d -name "$project_name" 2>/dev/null | head -1)
+
+    if [[ -z "$project_dir" ]]; then
+      if [[ -d "$personal_dir" ]]; then
+        project_dir="$personal_dir"
+      else
+        echo "Project '$project_name' not found in ~/code/work or ~/code/personal/"
+        return 1
+      fi
+    fi
+
+    project_dirs+=("$project_dir")
+  done
+
+  if tmux has-session -t "$session_name" 2>/dev/null; then
+    echo "Session '$session_name' already exists"
+    read "confirm?Do you want to kill it and start fresh? [y/N] "
+    case "$confirm" in
+      [yY]) tmux kill-session -t "$session_name" ;;
+      *) return 1 ;;
+    esac
+  fi
+
+  tmux new-session -d -s "$session_name" -c "${project_dirs[1]}" -n code
+  tmux send-keys -t "$session_name:code" "opencode" Enter
+
+  for (( i=2; i<=$#project_dirs; i++ )); do
+    tmux split-window -h -t "$session_name:code" -c "${project_dirs[$i]}"
+    tmux send-keys -t "$session_name:code" "opencode" Enter
+  done
+
+  tmux switch-client -t "$session_name"
+}

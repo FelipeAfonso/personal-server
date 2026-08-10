@@ -1,0 +1,8 @@
+customCommands:
+  # Detached checkout of the selected branch in this repo's main checkout —
+  # swaps the working tree in place without touching the worktree that holds
+  # the branch. Undo with `unreview` in the shell.
+  - key: "W"
+    context: "localBranches"
+    description: "Review: detached checkout of this branch"
+    command: "review {{.SelectedLocalBranch.Name | quote}}"

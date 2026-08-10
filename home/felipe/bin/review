@@ -1,0 +1,21 @@
+#!/bin/sh
+# review [branch] — detached checkout of a branch's tip so the working tree
+# swaps in place (cwd, running dev servers, editors all stay put). Made for
+# reviewing agent worktree branches that can't be checked out normally.
+# Remembers the branch you came from (git config review.return) for unreview.
+set -e
+
+branch="$1"
+if [ -z "$branch" ]; then
+  branch=$(git branch --sort=-committerdate \
+    --format='%(refname:short)%(if)%(worktreepath)%(then)  [worktree]%(end)' \
+    | fzf --prompt='review branch> ' | awk '{print $1}')
+  [ -z "$branch" ] && exit 1
+fi
+
+# Only save a return point when currently on a branch, so re-running review
+# while already detached (newer commits, another branch) keeps the way home.
+current=$(git symbolic-ref --quiet --short HEAD || true)
+[ -n "$current" ] && git config --local review.return "$current"
+
+git switch --detach "$branch"

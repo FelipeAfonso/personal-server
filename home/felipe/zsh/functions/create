@@ -1,0 +1,17 @@
+create() {
+  local IFS='/'
+  local -a nodes=($1)
+  local dir=""
+
+  for node in "${nodes[@]}"; do
+    if [[ "$node" == *.* ]]; then
+      [[ -n "$dir" ]] && mkdir -p "$dir"
+      touch "${dir}${node}"
+      return
+    else
+      dir="${dir}${node}/"
+    fi
+  done
+
+  [[ -n "$dir" ]] && mkdir -p "$dir"
+}

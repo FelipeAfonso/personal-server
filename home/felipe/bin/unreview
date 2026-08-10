@@ -1,0 +1,6 @@
+#!/bin/sh
+# unreview — return to the branch you were on before `review`, then clear
+# the marker. Falls back to main if there is none.
+back=$(git config --local review.return 2>/dev/null) || back=main
+git switch "$back"
+git config --local --unset review.return 2>/dev/null || true
