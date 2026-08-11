@@ -61,7 +61,24 @@
         "disko": "disko",
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs",
+        "secrets": "secrets",
         "sops-nix": "sops-nix"
+      }
+    },
+    "secrets": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786409983,
+        "narHash": "sha256-DTgkq4bOX+8LI++Sw3kXVY0vR/6pzGXkrzRFPLvzFyQ=",
+        "ref": "refs/heads/main",
+        "rev": "7f3c6b990236cc4f2e30e47f9aed0a510d10926e",
+        "revCount": 7,
+        "type": "git",
+        "url": "ssh://git@github.com-secrets/FelipeAfonso/secrets.git"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com-secrets/FelipeAfonso/secrets.git"
       }
     },
     "sops-nix": {
