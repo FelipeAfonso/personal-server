@@ -96,5 +96,15 @@
       source = ./bin/unreview;
       executable = true;
     };
+    # Global agent prompts: the shared desktop prompt (copied from
+    # miskatonic, keep in sync by hand) plus rlyeh-specific operating notes.
+    ".claude/CLAUDE.md".text =
+      builtins.readFile ./agents/claude-global.md
+      + "\n"
+      + builtins.readFile ./agents/rlyeh-agents.md;
+    ".codex/AGENTS.md".text =
+      builtins.readFile ./agents/codex-global.md
+      + "\n"
+      + builtins.readFile ./agents/rlyeh-agents.md;
   };
 }
