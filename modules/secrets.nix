@@ -11,8 +11,6 @@
       # Still a placeholder value; only consulted when the node is logged
       # out (e.g. a reinstall), so fill it before relying on auto-join.
       tailscale-authkey = { };
-      anthropic-api-key = { };
-      openai-api-key = { };
       github-pat = { };
     };
   };
