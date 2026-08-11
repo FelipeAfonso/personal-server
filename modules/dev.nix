@@ -29,6 +29,12 @@
 
     # Dev utilities
     gh
+    turso-cli
+    # Vercel CLI isn't in nixpkgs; wrap the npm package via npx (cached
+    # under ~/.npm after first run).
+    (writeShellScriptBin "vercel" ''
+      exec ${nodejs}/bin/npx --yes vercel@latest "$@"
+    '')
     lazygit
     lazydocker
     watchexec
