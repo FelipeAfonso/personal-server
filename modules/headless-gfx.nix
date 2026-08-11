@@ -15,7 +15,7 @@
   environment.systemPackages = with pkgs; [
     chromium
     xvfb-run
-    xorg.xauth # required for ssh -X
+    xauth # required for ssh -X
     imagemagick
     ffmpeg
   ];
@@ -24,7 +24,7 @@
   # come out as tofu.
   fonts.packages = with pkgs; [
     noto-fonts
-    noto-fonts-emoji
+    noto-fonts-color-emoji
     jetbrains-mono
   ];
 }

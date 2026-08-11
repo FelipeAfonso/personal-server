@@ -52,9 +52,11 @@
 
   programs.git = {
     enable = true;
-    userName = "Felipe Afonso";
-    userEmail = "fmunhozafonso@gmail.com";
-    extraConfig.init.defaultBranch = "main";
+    settings = {
+      user.name = "Felipe Afonso";
+      user.email = "fmunhozafonso@gmail.com";
+      init.defaultBranch = "main";
+    };
   };
 
   programs.direnv = {
