@@ -13,6 +13,17 @@ let
     cd ${t3Dir}
     [ -f package.json ] || echo '{ "name": "t3-serve", "private": true }' > package.json
     ${pkgs.bun}/bin/bun add t3@nightly
+    # bun never re-runs a postinstall that failed on a previous install, so a
+    # once-broken tree stays broken across `bun add` no-ops. Force the
+    # node-pty native build if the artifact is missing, and refuse to hand a
+    # broken tree to the server.
+    if ! { ${t3Healthy} }; then
+      npm rebuild node-pty
+    fi
+    if ! { ${t3Healthy} }; then
+      echo "t3-install: node-pty native build still missing" >&2
+      exit 1
+    fi
   '';
   # A previous failed install can leave the t3 bin present but node-pty
   # unbuilt — check for the native artifact, not just the entrypoint.
