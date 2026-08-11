@@ -25,6 +25,7 @@
     initialPassword = "cthulhu-fhtagn";
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICE5I6PLbSND+zuRx8RqdCTBBZ3B9Va7SMxIeIviVoWh fmunhozafonso@gmail.com"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINCHbUa1tAmxUSsBOGplrJ4zLTN/X5Tkrc2FE/Hv0BBX termius-iphone"
     ];
   };
 
