@@ -6,10 +6,20 @@ let
   t3Install = pkgs.writeShellScript "t3-install" ''
     set -euo pipefail
     export HOME=/home/felipe
+    # node-pty's postinstall shells out to node-gyp/python3/cc; systemd units
+    # don't get the system profile on PATH, so add it explicitly.
+    export PATH=/run/current-system/sw/bin:$PATH
     mkdir -p ${t3Dir}
     cd ${t3Dir}
     [ -f package.json ] || echo '{ "name": "t3-serve", "private": true }' > package.json
     ${pkgs.bun}/bin/bun add t3@nightly
+  '';
+  # A previous failed install can leave the t3 bin present but node-pty
+  # unbuilt — check for the native artifact, not just the entrypoint.
+  t3Healthy = ''
+    [ -x ${t3Dir}/node_modules/.bin/t3 ] \
+      && { [ -d ${t3Dir}/node_modules/node-pty/prebuilds/linux-x64 ] \
+        || [ -f ${t3Dir}/node_modules/node-pty/build/Release/pty.node ]; }
   '';
 in
 {
@@ -39,7 +49,7 @@ in
       Group = "users";
       WorkingDirectory = "/home/felipe/code";
       ExecStartPre = "${pkgs.writeShellScript "t3-ensure-installed" ''
-        [ -x ${t3Dir}/node_modules/.bin/t3 ] || ${t3Install}
+        if ! { ${t3Healthy} }; then ${t3Install}; fi
       ''}";
       ExecStart = "${pkgs.zsh}/bin/zsh -l -c 'exec ${t3Dir}/node_modules/.bin/t3 serve --no-browser'";
       Restart = "always";
