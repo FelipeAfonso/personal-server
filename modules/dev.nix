@@ -24,6 +24,8 @@
     gcc
     gnumake
     pkg-config
+    python3 # node-gyp needs it (t3/node-pty native builds)
+    node-gyp
 
     # Dev utilities
     gh
