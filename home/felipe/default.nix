@@ -56,6 +56,9 @@
       user.name = "Felipe Afonso";
       user.email = "fmunhozafonso@gmail.com";
       init.defaultBranch = "main";
+      # Config is read-only under home-manager, so `gh auth setup-git`
+      # can't write this itself; needed for https pushes on headless rlyeh.
+      credential."https://github.com".helper = "!gh auth git-credential";
     };
   };
 
