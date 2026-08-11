@@ -19,13 +19,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Private sops-encrypted secrets, shared across machines. Uncomment once
-    # the repo exists (see README "Secrets"), then wire it up in
-    # modules/secrets.nix.
-    # secrets = {
-    #   url = "git+ssh://git@github.com/FelipeAfonso/secrets.git";
-    #   flake = false;
-    # };
+    # Private sops-encrypted secrets, shared across machines. The
+    # github.com-secrets host alias (modules/network.nix) makes rlyeh
+    # authenticate with its host key, registered as a read-only deploy key.
+    secrets = {
+      url = "git+ssh://git@github.com-secrets/FelipeAfonso/secrets.git";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nixpkgs, disko, home-manager, sops-nix, ... }: {
