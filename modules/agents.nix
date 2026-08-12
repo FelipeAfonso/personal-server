@@ -7,6 +7,12 @@
     opencode
   ];
 
+  # Agent CLIs must stay updatable by T3 Code's provider auto-update, whose
+  # update commands assume user-level installs (~/.local/bin, ~/.bun/bin).
+  # Their installers ship generic dynamically-linked binaries, which need
+  # nix-ld to run on NixOS.
+  programs.nix-ld.enable = true;
+
   # Available for agents to self-isolate risky runs.
   virtualisation.docker.enable = true;
 
