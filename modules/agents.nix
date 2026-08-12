@@ -1,14 +1,12 @@
-{ pkgs, ... }:
+{ ... }:
 
 {
-  environment.systemPackages = with pkgs; [
-    claude-code
-    codex
-    opencode
-  ];
-
-  # Agent CLIs must stay updatable by T3 Code's provider auto-update, whose
-  # update commands assume user-level installs (~/.local/bin, ~/.bun/bin).
+  # Agent CLIs (claude, codex, opencode) are deliberately NOT installed here:
+  # Nix-store binaries are read-only, which breaks T3 Code's provider
+  # auto-update. They live user-level instead, where T3's update commands
+  # recognize them; on a fresh machine, bootstrap with:
+  #   curl -fsSL https://claude.ai/install.sh | bash   # ~/.local/bin/claude
+  #   bun i -g @openai/codex opencode-ai               # ~/.bun/bin/{codex,opencode}
   # Their installers ship generic dynamically-linked binaries, which need
   # nix-ld to run on NixOS.
   programs.nix-ld.enable = true;
