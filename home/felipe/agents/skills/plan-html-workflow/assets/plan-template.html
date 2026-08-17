@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="{{summary}}">
+  <meta property="og:title" content="{{title}}">
+  <meta property="og:description" content="{{summary}}">
+  <title>{{title}}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111212;
+      --text: #f2f2f0;
+      --muted: #a8aaa8;
+      --quiet: #737674;
+      --line: #2a2c2c;
+      --line-strong: #3a3d3c;
+      --panel: #171818;
+      --panel-2: #1d1f1e;
+      --code: #181919;
+      --accent: #d7dad8;
+      --mint: #9ad6bd;
+      --amber: #d6b56d;
+      --red: #e06f5f;
+      --violet: #b7a7ff;
+      --radius: 7px;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--bg); scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.58;
+      text-rendering: optimizeLegibility;
+    }
+    a { color: inherit; text-underline-offset: 4px; }
+    button, input, textarea, select { font: inherit; }
+    .pp-plan {
+      width: min(980px, calc(100% - 44px));
+      margin: 0 auto;
+      padding: 96px 0 112px;
+    }
+    .pp-hero {
+      max-width: 780px;
+      margin-bottom: 64px;
+    }
+    .pp-brand {
+      margin: 0 0 28px;
+      color: var(--accent);
+      font-size: 14px;
+      font-weight: 760;
+      letter-spacing: -0.02em;
+    }
+    h1 {
+      max-width: 760px;
+      margin: 0;
+      font-size: clamp(54px, 8vw, 92px);
+      font-weight: 780;
+      letter-spacing: -0.075em;
+      line-height: 0.94;
+      text-wrap: balance;
+    }
+    .pp-intro {
+      max-width: 690px;
+      margin: 28px 0 0;
+      color: var(--muted);
+      font-size: 18px;
+      letter-spacing: -0.01em;
+    }
+    .pp-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      margin: 20px 0 0;
+      color: var(--quiet);
+      font-size: 14px;
+    }
+    .pp-plan-shell {
+      display: grid;
+      grid-template-columns: minmax(144px, 190px) minmax(0, 1fr);
+      gap: clamp(28px, 5vw, 64px);
+      align-items: start;
+    }
+    .pp-plan-content { min-width: 0; }
+    .pp-toc {
+      position: sticky;
+      top: 86px;
+      padding-top: 2px;
+    }
+    .pp-toc__label {
+      margin: 0 0 12px;
+      color: var(--quiet);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .pp-toc nav {
+      position: relative;
+      display: grid;
+      gap: 2px;
+      padding-left: 16px;
+      border-left: 1px solid var(--line);
+    }
+    .pp-toc__marker {
+      position: absolute;
+      left: -1px;
+      top: 0;
+      width: 1px;
+      height: var(--pp-marker-height, 28px);
+      background: var(--mint);
+      transform: translateY(var(--pp-marker-y, 0));
+      transition: transform 220ms ease, height 220ms ease;
+    }
+    .pp-toc a {
+      display: block;
+      padding: 5px 0;
+      color: var(--quiet);
+      font-size: 13px;
+      line-height: 1.35;
+      text-decoration: none;
+      transition: color 160ms ease;
+    }
+    .pp-toc a:hover,
+    .pp-toc a:focus-visible,
+    .pp-toc a.is-active {
+      color: var(--text);
+      outline: 0;
+    }
+    section {
+      padding: 34px 0;
+      border-top: 1px solid var(--line);
+      scroll-margin-top: 92px;
+    }
+    h2 {
+      margin: 0 0 16px;
+      color: var(--text);
+      font-size: 22px;
+      font-weight: 720;
+      letter-spacing: -0.035em;
+      line-height: 1.12;
+    }
+    h3 {
+      margin: 26px 0 10px;
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    p {
+      max-width: 720px;
+      margin: 0;
+      color: var(--muted);
+    }
+    p + p { margin-top: 12px; }
+    ul, ol {
+      max-width: 760px;
+      margin: 14px 0 0;
+      padding-left: 22px;
+      color: var(--muted);
+    }
+    li + li { margin-top: 8px; }
+    strong { color: var(--text); font-weight: 700; }
+    code {
+      border-radius: 5px;
+      background: var(--code);
+      color: #eeeeec;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+      padding: 0.08em 0.32em;
+    }
+    pre {
+      max-width: 100%;
+      overflow-x: auto;
+      margin: 16px 0 0;
+      padding: 15px 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--code);
+      color: #cfd2d0;
+      font: 14px/1.7 ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      white-space: pre;
+    }
+    pre code {
+      display: block;
+      min-width: max-content;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+    }
+    .tok-comment { color: #6f7672; }
+    .tok-string { color: var(--mint); }
+    .tok-keyword { color: var(--violet); }
+    .tok-number { color: var(--amber); }
+    .tok-function { color: #f0d997; }
+    .pp-table-wrap { overflow-x: auto; margin: 16px 0 0; -webkit-overflow-scrolling: touch; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      color: var(--muted);
+      font-size: 15px;
+    }
+    caption {
+      padding: 0 0 10px;
+      color: var(--quiet);
+      font-size: 13px;
+      text-align: left;
+    }
+    th, td {
+      padding: 11px 0;
+      border-top: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th { color: var(--text); font-weight: 700; }
+    th + th, td + td { padding-left: 28px; }
+    .num {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .pp-callout {
+      margin: 18px 0 0;
+      padding: 15px 16px;
+      border-radius: var(--radius);
+      background: var(--panel);
+      color: var(--muted);
+    }
+    .pp-callout__label {
+      margin-bottom: 4px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 760;
+      letter-spacing: 0.02em;
+    }
+    .pp-callout.note { background: rgba(215, 218, 216, 0.06); }
+    .pp-callout.decision,
+    .pp-callout.success { background: rgba(154, 214, 189, 0.12); }
+    .pp-callout.risk { background: rgba(214, 181, 109, 0.12); }
+    .pp-callout.decision .pp-callout__label,
+    .pp-callout.success .pp-callout__label { color: var(--mint); }
+    .pp-callout.risk .pp-callout__label { color: var(--amber); }
+    .pp-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 18px 0 0;
+    }
+    .pp-stat {
+      padding: 15px 16px;
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .pp-stat__label {
+      margin-bottom: 7px;
+      color: var(--quiet);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .pp-stat__value {
+      color: var(--text);
+      font-size: 27px;
+      font-weight: 760;
+      letter-spacing: -0.035em;
+      line-height: 1;
+    }
+    .pp-stat__note {
+      margin-top: 6px;
+      color: var(--quiet);
+      font-size: 13px;
+    }
+    .pp-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 22px;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      vertical-align: middle;
+    }
+    .pp-badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+    .pp-badge.success { color: var(--mint); background: rgba(154, 214, 189, 0.11); border-color: transparent; }
+    .pp-badge.warning { color: var(--amber); background: rgba(214, 181, 109, 0.11); border-color: transparent; }
+    .pp-badge.danger { color: var(--red); background: rgba(224, 111, 95, 0.11); border-color: transparent; }
+    .pp-badge.accent { color: var(--accent); background: rgba(215, 218, 216, 0.07); border-color: transparent; }
+    .pp-badge.plain::before { display: none; }
+    .pp-facts {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      margin: 16px 0 0;
+    }
+    .pp-facts dt,
+    .pp-facts dd {
+      margin: 0;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+    }
+    .pp-facts dt {
+      padding-right: 22px;
+      color: var(--quiet);
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .pp-facts dd {
+      color: var(--muted);
+    }
+    .pp-tool {
+      margin-top: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    @media (max-width: 780px) {
+      .pp-plan { width: min(100% - 30px, 980px); padding: 64px 0 80px; }
+      h1 { font-size: 48px; }
+      .pp-plan-shell { display: block; }
+      .pp-toc {
+        position: relative;
+        top: auto;
+        margin: 0 0 28px;
+        padding: 14px 16px;
+        border-radius: var(--radius);
+        background: var(--panel);
+      }
+      .pp-toc nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 15px;
+        padding-left: 0;
+        border-left: 0;
+      }
+      .pp-toc__marker { display: none; }
+      .pp-toc a { padding: 2px 0; }
+      table, tbody, tr, th, td { display: block; }
+      th + th, td + td { padding-left: 0; }
+      td { border-top: 0; padding-top: 0; }
+      .num { text-align: left; }
+      .pp-facts { grid-template-columns: 1fr; }
+      .pp-facts dd { border-top: 0; padding-top: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .pp-toc__marker { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="pp-plan">
+    <header class="pp-hero">
+      <p class="pp-brand">// postplan</p>
+      <h1>{{title}}</h1>
+      <p class="pp-intro">{{summary}}</p>
+      <p class="pp-meta"><span>{{date}}</span><span>/</span><span>draft</span><span>/</span><span>local .plans html</span></p>
+    </header>
+
+    <div class="pp-plan-shell">
+      <aside class="pp-toc" aria-label="Plan contents">
+        <p class="pp-toc__label">contents</p>
+        <nav>
+          <span class="pp-toc__marker" aria-hidden="true"></span>
+          <a href="#plan-links">Plan links</a>
+          <a href="#context">Context</a>
+          <a href="#recommendation">Recommendation</a>
+          <a href="#implementation">Implementation</a>
+          <a href="#verification">Verification</a>
+        </nav>
+      </aside>
+
+      <div class="pp-plan-content">
+        <section id="plan-links">
+          <h2>Plan links</h2>
+          <div class="pp-table-wrap" role="region" aria-label="Plan links" tabindex="0">
+            <table>
+              <tbody>
+                <tr>
+                  <th scope="row">Local</th>
+                  <td data-postplan-local><code>{{localPath}}</code></td>
+                </tr>
+                <tr>
+                  <th scope="row">Hosted</th>
+                  <td data-postplan-hosted>pending publish</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="context">
+          <h2>Context</h2>
+          <p>Explain the current state and why this plan exists.</p>
+          <dl class="pp-facts">
+            <dt>Scope</dt><dd>Replace with the affected system, workflow, or feature.</dd>
+            <dt>Constraint</dt><dd>Replace with the primary limit or dependency.</dd>
+          </dl>
+        </section>
+
+        <section id="recommendation">
+          <h2>Recommendation</h2>
+          <div class="pp-callout decision">
+            <div class="pp-callout__label">Recommendation</div>
+            <p>State the proposed direction and the tradeoff it makes.</p>
+          </div>
+        </section>
+
+        <section id="implementation">
+          <h2>Implementation</h2>
+          <ul>
+            <li>Replace this with a concrete task.</li>
+            <li>Add tables, diagrams, code snippets, or controls when they clarify the plan.</li>
+          </ul>
+          <pre><code class="language-sh">bunx postplan upload {{localPath}}</code></pre>
+        </section>
+
+        <section id="verification">
+          <h2>Verification</h2>
+          <p>Describe the checks that prove the work is complete.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+  <script>
+    (() => {
+      const escapeHtml = (value) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+      const tokenRe = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:await|async|break|case|catch|class|const|continue|default|else|export|extends|finally|for|from|function|if|import|interface|let|new|return|switch|throw|try|type|var|while)\b|\b\d+(?:\.\d+)?\b)/g;
+      const classify = (token) => {
+        if (/^\/\//.test(token) || /^\/\*/.test(token)) return "tok-comment";
+        if (/^["']/.test(token)) return "tok-string";
+        if (/^\d/.test(token)) return "tok-number";
+        return "tok-keyword";
+      };
+      document.querySelectorAll("pre code").forEach((block) => {
+        if (block.dataset.highlighted === "true") return;
+        const source = block.textContent || "";
+        let html = "";
+        let last = 0;
+        for (const match of source.matchAll(tokenRe)) {
+          const token = match[0];
+          const index = match.index || 0;
+          html += escapeHtml(source.slice(last, index));
+          html += '<span class="' + classify(token) + '">' + escapeHtml(token) + "</span>";
+          last = index + token.length;
+        }
+        html += escapeHtml(source.slice(last));
+        block.innerHTML = html;
+        block.dataset.highlighted = "true";
+      });
+
+      const toc = document.querySelector(".pp-toc");
+      const links = [...document.querySelectorAll(".pp-toc a[href^='#']")];
+      const sections = links.map((link) => document.querySelector(link.getAttribute("href"))).filter(Boolean);
+      const setActive = (section) => {
+        const link = links.find((item) => item.getAttribute("href") === "#" + section.id);
+        if (!link || !toc) return;
+        links.forEach((item) => item.classList.toggle("is-active", item === link));
+        toc.style.setProperty("--pp-marker-y", link.offsetTop + "px");
+        toc.style.setProperty("--pp-marker-height", link.offsetHeight + "px");
+      };
+      if (sections.length) {
+        setActive(sections[0]);
+        const observer = new IntersectionObserver((entries) => {
+          const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible) setActive(visible.target);
+        }, { rootMargin: "-24% 0px -58% 0px", threshold: [0.1, 0.4, 0.7] });
+        sections.forEach((section) => observer.observe(section));
+        window.addEventListener("resize", () => {
+          const active = document.querySelector(".pp-toc a.is-active");
+          const section = active ? document.querySelector(active.getAttribute("href")) : sections[0];
+          if (section) setActive(section);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

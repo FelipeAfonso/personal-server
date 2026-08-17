@@ -109,5 +109,11 @@
       builtins.readFile ./agents/codex-global.md
       + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
+    # Claude Code skills vendored from miskatonic (~/.claude/skills). Files
+    # under ~/.claude/skills that aren't listed here are left alone.
+    ".claude/skills/plan-html-workflow" = {
+      source = ./agents/skills/plan-html-workflow;
+      recursive = true;
+    };
   };
 }
