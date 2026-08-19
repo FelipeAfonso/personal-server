@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="rlyeh">
+  <title>rlyeh — the rising, a monolith cresting through ripples</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#23262f"/>
+      <stop offset="1" stop-color="#14161c"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="14" fill="url(#bg)" stroke="#3a3f4d" stroke-width="2"/>
+  <path d="M25 42 V17 l14 -6 V42" fill="none" stroke="#A0C6B8" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M12 44 q5 -4 10 0 t10 0 t10 0 t10 0" fill="none" stroke="#FFD584" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M18 51 q5 -4 10 0 t10 0 t8 0" fill="none" stroke="#A0C6B8" stroke-width="2" stroke-linecap="round" opacity="0.55"/>
+  <circle cx="37" cy="12" r="1.6" fill="#FFF7CD"/>
+  <circle cx="16" cy="17" r="1.2" fill="#ACA57B"/>
+</svg>

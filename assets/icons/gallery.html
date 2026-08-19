@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rlyeh — icon candidates</title>
+<style>
+  :root {
+    --bg: #14161c;
+    --panel: #1b1e26;
+    --border: #3a3f4d;
+    --fg: #FFF7CD;
+    --muted: #ACA57B;
+    --sage: #A0C6B8;
+    --gold: #FFD584;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 "Iowan Old Style", "Palatino", Georgia, serif;
+    min-height: 100vh;
+    padding: 3rem 1.5rem 4rem;
+  }
+  main { max-width: 62rem; margin: 0 auto; }
+  h1 {
+    font-size: 1.7rem;
+    font-weight: normal;
+    letter-spacing: 0.14em;
+    color: var(--sage);
+    margin: 0;
+  }
+  h1 .accent { color: var(--gold); }
+  p.sub { color: var(--muted); margin: 0.4rem 0 2.5rem; font-style: italic; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 1.25rem;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.25rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+  }
+  .card img.hero { width: 128px; height: 128px; }
+  .sizes { display: flex; align-items: flex-end; gap: 0.6rem; opacity: 0.9; }
+  .sizes img { display: block; }
+  .card h2 {
+    font-size: 0.95rem;
+    font-weight: normal;
+    letter-spacing: 0.08em;
+    color: var(--fg);
+    margin: 0;
+    text-align: center;
+  }
+  .card .num { color: var(--gold); margin-right: 0.35em; }
+  .card p {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 0;
+    text-align: center;
+  }
+  footer {
+    margin-top: 3rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>RLYEH <span class="accent">·</span> icon candidates</h1>
+  <p class="sub">ten marks for personal-server — the sunken city, always on, under the surface</p>
+  <div class="grid" id="grid"></div>
+  <footer>rendered at 128 / 64 / 32 / 16 px — palette frozen from miskatonic's last wallpaper</footer>
+</main>
+<script>
+  const icons = [
+    ["01-sunken-spire.svg", "sunken spire", "a tower at the wrong angle, under the waveline"],
+    ["02-dead-but-dreaming.svg", "dead but dreaming", "a closed eye beneath the waves, one glint"],
+    ["03-tentacle.svg", "the tentacle", "one coil breaking the surface"],
+    ["04-the-rising.svg", "the rising", "a monolith cresting through the ripples"],
+    ["05-coordinates.svg", "47°9′S 126°43′W", "the fix on the chart, needle pointing home"],
+    ["06-cyclopean-door.svg", "cyclopean door", "a doorway whose angles are wrong"],
+    ["07-the-sleeper.svg", "the sleeper", "dome, closed eyes, three hanging tentacles"],
+    ["08-bubbles.svg", "bubbles from the deep", "something breathing down there"],
+    ["09-star-spawn.svg", "star-spawn", "the elder sign, five-branched"],
+    ["10-server-sigil.svg", "server sigil", "the rack, with something wrapped around it"],
+  ];
+  document.getElementById("grid").innerHTML = icons.map(([f, name, desc], i) => `
+    <div class="card">
+      <img class="hero" src="${f}" alt="${name}">
+      <div class="sizes">
+        <img src="${f}" width="64" height="64" alt="">
+        <img src="${f}" width="32" height="32" alt="">
+        <img src="${f}" width="16" height="16" alt="">
+      </div>
+      <h2><span class="num">${String(i + 1).padStart(2, "0")}</span>${name}</h2>
+      <p>${desc}</p>
+    </div>`).join("");
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="rlyeh">
+  <title>rlyeh — the sleeper, dome and hanging tentacles</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#23262f"/>
+      <stop offset="1" stop-color="#14161c"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="14" fill="url(#bg)" stroke="#3a3f4d" stroke-width="2"/>
+  <path d="M14 30 a18 16 0 0 1 36 0 v4 H14 Z" fill="none" stroke="#A0C6B8" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M22 34 q-2 8 3 15" fill="none" stroke="#A0C6B8" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M32 34 q2 8 -2 16" fill="none" stroke="#A0C6B8" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M42 34 q3 8 -1 15" fill="none" stroke="#A0C6B8" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M24 26 q3 -3 6 0" fill="none" stroke="#FFD584" stroke-width="2" stroke-linecap="round"/>
+  <path d="M34 26 q3 -3 6 0" fill="none" stroke="#FFD584" stroke-width="2" stroke-linecap="round"/>
+</svg>
