@@ -99,8 +99,11 @@
       source = ./bin/unreview;
       executable = true;
     };
-    # Global agent prompts: the shared desktop prompt (copied from
-    # miskatonic, keep in sync by hand) plus rlyeh-specific operating notes.
+    # Global agent prompts, one per CLI: a shared-with-miskatonic section
+    # (keep the *-global.md files in sync with the desktop by hand) plus the
+    # rlyeh operating notes (network, fleet, services) appended to each.
+    # opencode would otherwise fall back to ~/.claude/CLAUDE.md, which talks
+    # about Claude-only tools, so it gets its own file.
     ".claude/CLAUDE.md".text =
       builtins.readFile ./agents/claude-global.md
       + "\n"
@@ -109,10 +112,24 @@
       builtins.readFile ./agents/codex-global.md
       + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
-    # Claude Code skills vendored from miskatonic (~/.claude/skills). Files
-    # under ~/.claude/skills that aren't listed here are left alone.
+    ".config/opencode/AGENTS.md".text =
+      builtins.readFile ./agents/opencode-global.md
+      + "\n"
+      + builtins.readFile ./agents/rlyeh-agents.md;
+    # Skills vendored into the repo so a fresh install has them. Claude Code
+    # reads ~/.claude/skills; codex and opencode both read ~/.agents/skills.
+    # Other entries in those dirs (installed with `npx skills add ...`) are
+    # left alone.
     ".claude/skills/plan-html-workflow" = {
       source = ./agents/skills/plan-html-workflow;
+      recursive = true;
+    };
+    ".claude/skills/unslop" = {
+      source = ./agents/skills/unslop;
+      recursive = true;
+    };
+    ".agents/skills/unslop" = {
+      source = ./agents/skills/unslop;
       recursive = true;
     };
   };

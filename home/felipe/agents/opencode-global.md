@@ -25,37 +25,45 @@ taste, then cost.
 - These are defaults, not limits. If output misses the bar, redo or escalate
   without asking solely because a stronger model costs more.
 
-## Native Codex subagents
+## Subagents inside opencode
 
-- Use native Codex subagents only when the user or applicable repository
-  instructions authorize delegation or parallel agent work.
-- Prefer native subagents for work that can proceed independently and has a
-  concrete, bounded deliverable.
-- Available native model slugs and reasoning levels come from the current
-  Codex runtime. Do not invent unsupported model names.
+- opencode's own subagents (`@general`, `@explore`, or any agent defined in
+  `opencode.json`) are the first choice for parallel or bounded work. Pick the
+  model per agent with the `model` field (`anthropic/claude-...`,
+  `openai/gpt-5.6-...`) instead of leaving it on the session default.
 - Give every subagent a self-contained objective, relevant paths, constraints,
   expected output, and whether it may edit files.
 - The primary agent owns the final result: inspect changes and verify claims
   rather than forwarding a subagent's output uncritically.
 
-## Running Claude models as external workers
+## Running the other CLIs as external workers
 
-Claude models are not native Codex subagents. When a Claude perspective is
-useful and delegation is authorized, run the installed Claude Code CLI as an
-external worker from the relevant repository directory.
+Both `claude` and `codex` are installed and authenticated. When a model or a
+harness feature that opencode doesn't have is the right tool, shell out to it
+from the relevant repository directory with a self-contained prompt.
 
-For read-only investigation or review, prefer non-interactive plan mode:
+Claude Code, read-only review or investigation:
 
 ```sh
 claude -p --model fable --effort high --permission-mode plan \
   --tools "Read,Grep,Glob" "<self-contained prompt>"
 ```
 
-Choose the model explicitly: `sonnet`, `opus`, or `fable`. Choose effort
-explicitly (`low`, `medium`, `high`, `xhigh`, or `max`) based on difficulty.
-Use `--output-format json` when reliable machine parsing materially helps.
+Choose the model explicitly (`sonnet`, `opus`, or `fable`) and the effort
+explicitly (`low` through `max`). Use `--output-format json` when you need to
+parse the result. For edits, prefer `--worktree <name>` and never pass
+`--dangerously-skip-permissions`.
 
-Each Claude prompt must include:
+Codex, read-only:
+
+```sh
+codex exec -m gpt-5.6-terra -s read-only "<self-contained prompt>"
+```
+
+Always pass `-m` (`gpt-5.6-terra` or `gpt-5.6-sol`); the CLI default is served
+remotely and can change under you.
+
+Each external prompt must include:
 
 - the objective and concrete deliverable;
 - the repository path and relevant files or context;
@@ -64,15 +72,8 @@ Each Claude prompt must include:
 - an instruction to preserve unrelated changes and avoid destructive actions;
 - a request to report evidence, uncertainties, and verification performed.
 
-For implementation, grant editing capability only when the user or task has
-already authorized the underlying change. Prefer isolation with Claude's
-`--worktree <name>` option. Do not use `--dangerously-skip-permissions` or
-`--allow-dangerously-skip-permissions`. Inspect the resulting diff and run
-appropriate verification before accepting it.
-
-Claude CLI calls may require external network/auth access. Use the normal
-approval mechanism when the execution environment requires it; do not work
-around sandbox or permission failures.
+Inspect the resulting diff and run appropriate verification before accepting
+any external worker's output.
 
 # Presenting plans
 
