@@ -26,6 +26,7 @@
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICE5I6PLbSND+zuRx8RqdCTBBZ3B9Va7SMxIeIviVoWh fmunhozafonso@gmail.com"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINCHbUa1tAmxUSsBOGplrJ4zLTN/X5Tkrc2FE/Hv0BBX termius-iphone"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG9R66qFE6vCvA7QuOuF6/JqXQFgZCYTOFk1b846dvN7 yuggoth"
     ];
   };
 
@@ -38,6 +39,10 @@
   home-manager = {
     useGlobalPkgs = true;
     useUserPackages = true;
+    # Move aside unmanaged files that collide with managed paths instead of
+    # failing activation (e.g. hook scripts installed by hand before the
+    # flake started managing ~/.claude/hooks/).
+    backupFileExtension = "hm-bak";
     extraSpecialArgs = { inherit inputs; };
     users.felipe = import ../../home/felipe;
   };

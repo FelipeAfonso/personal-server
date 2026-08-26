@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="rlyeh">
+  <title>rlyeh — star-spawn, the elder sign</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#23262f"/>
+      <stop offset="1" stop-color="#14161c"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="14" fill="url(#bg)" stroke="#3a3f4d" stroke-width="2"/>
+  <path d="M32 13 L48 27 L42 50 L22 50 L16 27 Z" fill="none" stroke="#A0C6B8" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M32 13 V33 M16 27 L32 33 M48 27 L32 33 M22 50 L32 33 M42 50 L32 33" stroke="#A0C6B8" stroke-width="1.6" opacity="0.45"/>
+  <circle cx="32" cy="33" r="4" fill="none" stroke="#FFD584" stroke-width="2"/>
+  <circle cx="32" cy="33" r="1.2" fill="#FFF7CD"/>
+  <circle cx="52" cy="50" r="1.1" fill="#ACA57B"/>
+</svg>

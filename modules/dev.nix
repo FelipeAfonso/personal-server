@@ -35,6 +35,11 @@
     (writeShellScriptBin "vercel" ''
       exec ${nodejs}/bin/npx --yes vercel@latest "$@"
     '')
+    # postplan (plan publishing CLI used by the plan-html-workflow skill) —
+    # also npm-only; same npx wrapper pattern. Auth state lives in ~/.postplan.
+    (writeShellScriptBin "postplan" ''
+      exec ${nodejs}/bin/npx --yes postplan@latest "$@"
+    '')
     lazygit
     lazydocker
     watchexec

@@ -99,9 +99,12 @@
       source = ./bin/unreview;
       executable = true;
     };
-    # Global agent prompts: the shared desktop prompt (also tracked in the
-    # personal-desktop repo as agents/*.md — keep both in sync by hand) plus
-    # rlyeh-specific operating notes.
+    # Global agent prompts, one per CLI: a shared-with-miskatonic section
+    # (also tracked in the personal-desktop repo as agents/*.md — keep both
+    # in sync by hand) plus the rlyeh operating notes (network, fleet,
+    # services) appended to each. opencode would otherwise fall back to
+    # ~/.claude/CLAUDE.md, which talks about Claude-only tools, so it gets
+    # its own file.
     ".claude/CLAUDE.md".text =
       builtins.readFile ./agents/claude-global.md
       + "\n"
@@ -110,5 +113,36 @@
       builtins.readFile ./agents/codex-global.md
       + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
+    ".config/opencode/AGENTS.md".text =
+      builtins.readFile ./agents/opencode-global.md
+      + "\n"
+      + builtins.readFile ./agents/rlyeh-agents.md;
+    # Skills vendored into the repo so a fresh install has them. Claude Code
+    # reads ~/.claude/skills; codex and opencode both read ~/.agents/skills.
+    # Other entries in those dirs (installed with `npx skills add ...`) are
+    # left alone.
+    ".claude/skills/plan-html-workflow" = {
+      source = ./agents/skills/plan-html-workflow;
+      recursive = true;
+    };
+    ".claude/skills/unslop" = {
+      source = ./agents/skills/unslop;
+      recursive = true;
+    };
+    ".agents/skills/unslop" = {
+      source = ./agents/skills/unslop;
+      recursive = true;
+    };
+    # Hook scripts referenced by ~/.claude/settings.json. That file stays
+    # mutable (Claude Code writes to it at runtime, e.g. /config), so the
+    # hooks block in it is set by hand; only the scripts are flake-managed.
+    ".claude/hooks/unslop-reminder.sh" = {
+      source = ./agents/hooks/unslop-reminder.sh;
+      executable = true;
+    };
+    ".claude/hooks/unslop-stop-gate.py" = {
+      source = ./agents/hooks/unslop-stop-gate.py;
+      executable = true;
+    };
   };
 }

@@ -5,7 +5,7 @@ The repo *is* the machine: packages, services, disk layout, and dotfiles are
 all declared here. There is no imperative setup; the only deploy command is
 `nixos-rebuild switch --flake .#rlyeh`.
 
-Fleet canon: `rlyeh` (this server) · `miskatonic` (desktop) · MacBook TBD.
+Fleet canon (tailnet `bass-pirarucu.ts.net`): `rlyeh` (this server) · `miskatonic` (desktop) · `yuggoth` (MacBook) · `necronomicon` (iPhone). The agent prompts in `home/felipe/agents/` carry the same map.
 
 ```
 flake.nix                     inputs: nixpkgs-unstable, disko, home-manager, sops-nix (+ private secrets, dormant)
@@ -21,6 +21,7 @@ modules/
   headless-gfx.nix            xvfb-run, headless chromium, capture tools, fonts
   secrets.nix                 sops-nix wiring (dormant until secrets repo exists)
 home/felipe/                  home-manager: zsh, tmux, nvim, starship, lazygit, opencode, bin scripts
+  agents/                     global prompts for claude/codex/opencode + vendored skills (unslop, plan-html-workflow)
 ```
 
 ## Design decisions (short version)
