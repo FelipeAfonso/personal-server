@@ -87,3 +87,14 @@ The other machines:
   (e.g. postplan / plan-html-workflow) isn't installed on this machine,
   degrade gracefully (deliver plans as markdown in chat, say) instead of
   blocking on it.
+
+## Unslop enforcement hooks
+
+Two hooks in `~/.claude/settings.json` back the global unslop rule. A
+UserPromptSubmit hook injects the rule into context every turn, and a Stop
+gate (`~/.claude/hooks/unslop-stop-gate.py`) blocks ending a turn with a
+substantial reply until the unslop skill was invoked via the Skill tool. If
+your reply gets bounced with an unslop message, invoke the skill and
+rewrite; don't try to work around the hook. The scripts are flake-managed
+(`home/felipe/agents/hooks/`); the hooks block in settings.json is set by
+hand because Claude Code writes to that file at runtime.

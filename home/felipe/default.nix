@@ -132,5 +132,16 @@
       source = ./agents/skills/unslop;
       recursive = true;
     };
+    # Hook scripts referenced by ~/.claude/settings.json. That file stays
+    # mutable (Claude Code writes to it at runtime, e.g. /config), so the
+    # hooks block in it is set by hand; only the scripts are flake-managed.
+    ".claude/hooks/unslop-reminder.sh" = {
+      source = ./agents/hooks/unslop-reminder.sh;
+      executable = true;
+    };
+    ".claude/hooks/unslop-stop-gate.py" = {
+      source = ./agents/hooks/unslop-stop-gate.py;
+      executable = true;
+    };
   };
 }
