@@ -30,6 +30,7 @@
     # Dev utilities
     gh
     turso-cli
+    flyctl # deploys df-dd-api; auth via `fly auth login` (state in ~/.fly)
     # Vercel CLI isn't in nixpkgs; wrap the npm package via npx (cached
     # under ~/.npm after first run).
     (writeShellScriptBin "vercel" ''
