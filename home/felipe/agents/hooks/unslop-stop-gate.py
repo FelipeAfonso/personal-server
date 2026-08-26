@@ -60,6 +60,11 @@ def main() -> None:
     for i, entry in enumerate(entries):
         if entry.get("type") != "user":
             continue
+        # isMeta marks harness-injected user messages (skill expansions,
+        # hook feedback). Counting those as prompts moves the turn boundary
+        # past a Skill invocation made earlier in the same turn.
+        if entry.get("isMeta"):
+            continue
         content = (entry.get("message") or {}).get("content")
         if isinstance(content, str):
             last_user = i
