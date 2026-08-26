@@ -39,6 +39,10 @@
   home-manager = {
     useGlobalPkgs = true;
     useUserPackages = true;
+    # Move aside unmanaged files that collide with managed paths instead of
+    # failing activation (e.g. hook scripts installed by hand before the
+    # flake started managing ~/.claude/hooks/).
+    backupFileExtension = "hm-bak";
     extraSpecialArgs = { inherit inputs; };
     users.felipe = import ../../home/felipe;
   };
