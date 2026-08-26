@@ -100,10 +100,11 @@
       executable = true;
     };
     # Global agent prompts, one per CLI: a shared-with-miskatonic section
-    # (keep the *-global.md files in sync with the desktop by hand) plus the
-    # rlyeh operating notes (network, fleet, services) appended to each.
-    # opencode would otherwise fall back to ~/.claude/CLAUDE.md, which talks
-    # about Claude-only tools, so it gets its own file.
+    # (also tracked in the personal-desktop repo as agents/*.md — keep both
+    # in sync by hand) plus the rlyeh operating notes (network, fleet,
+    # services) appended to each. opencode would otherwise fall back to
+    # ~/.claude/CLAUDE.md, which talks about Claude-only tools, so it gets
+    # its own file.
     ".claude/CLAUDE.md".text =
       builtins.readFile ./agents/claude-global.md
       + "\n"
