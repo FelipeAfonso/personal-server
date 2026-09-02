@@ -68,11 +68,11 @@
     "secrets": {
       "flake": false,
       "locked": {
-        "lastModified": 1786411614,
-        "narHash": "sha256-Qtsy7M+FgFKd5OWk5sJhXqZIEY27f/My792ahFUu4Mw=",
+        "lastModified": 1788391266,
+        "narHash": "sha256-mFsuWmDKUNNcYj3rHt6seQXPBEpG6w9Qpy2DemJ02p0=",
         "ref": "refs/heads/main",
-        "rev": "83a3634ae572206878bb14a5d70ea2ee355264c9",
-        "revCount": 8,
+        "rev": "94859ef5ade2b422f0ed2975d12f1299ec3f1f0a",
+        "revCount": 9,
         "type": "git",
         "url": "ssh://git@github.com-secrets/FelipeAfonso/secrets.git"
       },

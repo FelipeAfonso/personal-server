@@ -10,6 +10,7 @@
     ../../modules/dev.nix
     ../../modules/headless-gfx.nix
     ../../modules/secrets.nix
+    ../../modules/backups.nix
   ];
 
   networking.hostName = "rlyeh";
