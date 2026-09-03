@@ -9,9 +9,9 @@ start it; if something you set up dies, revive it and say what happened.
 
 ## Environment
 
-- Pure-flake NixOS: the entire system is defined by `~/code/personal-server`
+- Pure-flake NixOS: the entire system is defined by `~/code/personal/personal-server`
   (public GitHub repo). System changes = edit the flake, commit + push, then
-  `sudo nixos-rebuild switch --flake ~/code/personal-server#rlyeh`. Never
+  `sudo nixos-rebuild switch --flake ~/code/personal/personal-server#rlyeh`. Never
   install system software imperatively. Add it to the flake, or use
   `nix shell nixpkgs#<pkg>` / docker for ad-hoc needs.
 - Passwordless sudo. Secrets live at `/run/secrets/` (sops-nix). The
@@ -21,6 +21,20 @@ start it; if something you set up dies, revive it and say what happened.
 - The T3 Code server (systemd user unit `t3code.service`, port 3773, with
   its relay tunnel) is this machine's #1 service. Never kill it, bind its
   port, or touch its unit or `~/.t3`.
+
+## Where things live
+
+Same split as miskatonic. Put new clones in the right bucket, never loose in
+`~` or at the top of `~/code`:
+
+- `~/code/personal/` — Felipe's own repos (personal-server, rigsmith, ...).
+- `~/code/work/<client>/` — client work, one folder per client (currently
+  `niterra`, which also holds loose Niterra docs next to the repos).
+- `~/code/stuff/` — third-party checkouts kept around for reference (t3code).
+- `~/services/` — running deployments that are not source code
+  (`dfdd-staging`: binaries, env, SQLite db, logs).
+- `~/backups/` — flake-managed backup output. Go's module cache is under
+  `~/.local/share/go` (GOPATH), not `~/go`.
 
 ## Network: the tailnet and the fleet
 

@@ -18,11 +18,13 @@
     EDITOR = "nvim";
     PAGER = "less";
     BUN_INSTALL = "$HOME/.bun";
+    # Keep the Go module cache out of ~ (default GOPATH is ~/go).
+    GOPATH = "$HOME/.local/share/go";
   };
 
   home.sessionPath = [
     "$HOME/.local/bin"
-    "$HOME/go/bin"
+    "$HOME/.local/share/go/bin"
     "$HOME/.cargo/bin"
     "$HOME/.bun/bin"
   ];
