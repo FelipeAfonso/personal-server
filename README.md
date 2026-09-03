@@ -20,7 +20,7 @@ modules/
   dev.nix                     go, rust, bun, node, odin + raylib, build essentials
   headless-gfx.nix            xvfb-run, headless chromium, capture tools, fonts
   secrets.nix                 sops-nix wiring (dormant until secrets repo exists)
-  backups.nix                 niterra-app Turso dump every 4h -> ~/backups/turso/niterra-app, 7-day retention
+  backups.nix                 Turso dumps every 4h -> ~/backups/turso/<db>, 7-day retention
 home/felipe/                  home-manager: zsh, tmux, nvim, starship, lazygit, opencode, bin scripts
   agents/                     global prompts for claude/codex/opencode + vendored skills (unslop, plan-html-workflow)
 ```
