@@ -7,12 +7,13 @@ Every piece of prose you produce for a human (chat replies, commit messages, PR 
 The model table, roles and effort rules are in "Picking the right model"
 further down. This section is only the plumbing.
 
-opencode on this fleet only has the `opencode-go` provider authenticated, so
-its native subagents (`@general`, `@explore`, agents in `opencode.json`)
-can't reach the models in the table. Use them only for tasks where the model
-doesn't matter. For anything the table cares about, shell out to the other
-two CLIs from the relevant repository directory with a self-contained
-prompt. Both are installed and authenticated.
+Unless `opencode models` lists `anthropic/` or `openai/` providers on this
+machine (on the fleet it usually only has `opencode-go`), opencode's native
+subagents (`@general`, `@explore`, agents in `opencode.json`) can't reach the
+models in the table. Use them only for tasks where the model doesn't matter.
+For anything the table cares about, shell out to the other two CLIs from the
+relevant repository directory with a self-contained prompt. Both are
+installed and authenticated.
 
 Claude Code, read-only review or investigation:
 
