@@ -2,45 +2,17 @@
 
 Every piece of prose you produce for a human (chat replies, commit messages, PR descriptions, docs, plans, comments, copy) goes through the `unslop` skill before it ships. Load it, scan the text against its pattern list, rewrite, then self-audit. The tells that show up most in agent output, gone on sight: no em dashes (periods or commas instead), no "not just X but Y", no rule-of-three padding, no inline-header bullet lists that restate themselves, no chatbot sign-offs, sentence-case headings, plain words over "leverage"/"delve"/"crucial". Sounding like a person beats sounding polished. If the skill isn't installed on the machine you're on, apply those rules from memory anyway.
 
-# Model and delegation preferences
+# Delegation from opencode
 
-Use model quality intentionally. Intelligence is the ability to solve difficult
-problems unsupervised; taste covers UI/UX, code quality, API design, and copy.
-Cost is a tie-breaker only. For anything that ships, prefer intelligence, then
-taste, then cost.
+The model table, roles and effort rules are in "Picking the right model"
+further down. This section is only the plumbing.
 
-| model         | cost | intelligence | taste |
-| ------------- | ---- | ------------ | ----- |
-| gpt-5.6 terra | 9    | 8            | 6     |
-| sonnet-5      | 5    | 5            | 7     |
-| opus-5        | 5    | 8.5          | 8     |
-| gpt-5.6 sol   | 3    | 8.5          | 8.5   |
-| fable-5       | 2    | 9            | 9     |
-
-- Use `gpt-5.6-terra` for clear-spec, mechanical, or bulk work.
-- Use `gpt-5.6-sol` when a GPT model needs strong judgment or taste.
-- Useful independent reviewers include fable-5, gpt-5.6-sol, opus-5, and,
-  for a cheap extra perspective, gpt-5.6-terra.
-- Never use Haiku or gpt-5.6 luna.
-- These are defaults, not limits. If output misses the bar, redo or escalate
-  without asking solely because a stronger model costs more.
-
-## Subagents inside opencode
-
-- opencode's own subagents (`@general`, `@explore`, or any agent defined in
-  `opencode.json`) are the first choice for parallel or bounded work. Pick the
-  model per agent with the `model` field (`anthropic/claude-...`,
-  `openai/gpt-5.6-...`) instead of leaving it on the session default.
-- Give every subagent a self-contained objective, relevant paths, constraints,
-  expected output, and whether it may edit files.
-- The primary agent owns the final result: inspect changes and verify claims
-  rather than forwarding a subagent's output uncritically.
-
-## Running the other CLIs as external workers
-
-Both `claude` and `codex` are installed and authenticated. When a model or a
-harness feature that opencode doesn't have is the right tool, shell out to it
-from the relevant repository directory with a self-contained prompt.
+opencode on this fleet only has the `opencode-go` provider authenticated, so
+its native subagents (`@general`, `@explore`, agents in `opencode.json`)
+can't reach the models in the table. Use them only for tasks where the model
+doesn't matter. For anything the table cares about, shell out to the other
+two CLIs from the relevant repository directory with a self-contained
+prompt. Both are installed and authenticated.
 
 Claude Code, read-only review or investigation:
 
@@ -50,18 +22,19 @@ claude -p --model fable --effort high --permission-mode plan \
 ```
 
 Choose the model explicitly (`sonnet`, `opus`, or `fable`) and the effort
-explicitly (`low` through `max`). Use `--output-format json` when you need to
-parse the result. For edits, prefer `--worktree <name>` and never pass
+explicitly. Use `--output-format json` when you need to parse the result. For
+edits, prefer `--worktree <name>` and never pass
 `--dangerously-skip-permissions`.
 
 Codex, read-only:
 
 ```sh
-codex exec -m gpt-5.6-terra -s read-only "<self-contained prompt>"
+codex exec -m gpt-6-astra -c model_reasoning_effort="high" -s read-only \
+  "<self-contained prompt>"
 ```
 
-Always pass `-m` (`gpt-5.6-terra` or `gpt-5.6-sol`); the CLI default is served
-remotely and can change under you.
+Always pass `-m` and the effort override; the CLI default is served remotely
+and can change under you.
 
 Each external prompt must include:
 

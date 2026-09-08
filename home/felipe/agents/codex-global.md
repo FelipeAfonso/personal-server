@@ -2,28 +2,10 @@
 
 Every piece of prose you produce for a human (chat replies, commit messages, PR descriptions, docs, plans, comments, copy) goes through the `unslop` skill before it ships. Load it, scan the text against its pattern list, rewrite, then self-audit. The tells that show up most in agent output, gone on sight: no em dashes (periods or commas instead), no "not just X but Y", no rule-of-three padding, no inline-header bullet lists that restate themselves, no chatbot sign-offs, sentence-case headings, plain words over "leverage"/"delve"/"crucial". Sounding like a person beats sounding polished. If the skill isn't installed on the machine you're on, apply those rules from memory anyway.
 
-# Model and delegation preferences
+# Delegation from Codex
 
-Use model quality intentionally. Intelligence is the ability to solve difficult
-problems unsupervised; taste covers UI/UX, code quality, API design, and copy.
-Cost is a tie-breaker only. For anything that ships, prefer intelligence, then
-taste, then cost.
-
-| model         | cost | intelligence | taste |
-| ------------- | ---- | ------------ | ----- |
-| gpt-5.6 terra | 9    | 8            | 6     |
-| sonnet-5      | 5    | 5            | 7     |
-| opus-5        | 5    | 8.5          | 8     |
-| gpt-5.6 sol   | 3    | 8.5          | 8.5   |
-| fable-5       | 2    | 9            | 9     |
-
-- Use `gpt-5.6-terra` for clear-spec, mechanical, or bulk work.
-- Use `gpt-5.6-sol` when a GPT model needs strong judgment or taste.
-- Useful independent reviewers include fable-5, gpt-5.6-sol, opus-5, and,
-  for a cheap extra perspective, gpt-5.6-terra.
-- Never use Haiku or gpt-5.6 luna.
-- These are defaults, not limits. If output misses the bar, redo or escalate
-  without asking solely because a stronger model costs more.
+The model table, roles and effort rules are in "Picking the right model"
+further down. This section is only the plumbing.
 
 ## Native Codex subagents
 
@@ -31,8 +13,8 @@ taste, then cost.
   instructions authorize delegation or parallel agent work.
 - Prefer native subagents for work that can proceed independently and has a
   concrete, bounded deliverable.
-- Available native model slugs and reasoning levels come from the current
-  Codex runtime. Do not invent unsupported model names.
+- Pick each subagent's model and reasoning level from the model section.
+  Do not invent slugs the current Codex runtime doesn't list.
 - Give every subagent a self-contained objective, relevant paths, constraints,
   expected output, and whether it may edit files.
 - The primary agent owns the final result: inspect changes and verify claims
@@ -52,8 +34,8 @@ claude -p --model fable --effort high --permission-mode plan \
 ```
 
 Choose the model explicitly: `sonnet`, `opus`, or `fable`. Choose effort
-explicitly (`low`, `medium`, `high`, `xhigh`, or `max`) based on difficulty.
-Use `--output-format json` when reliable machine parsing materially helps.
+explicitly too; the model section sets it (`fable` is always `high`). Use
+`--output-format json` when reliable machine parsing materially helps.
 
 Each Claude prompt must include:
 

@@ -101,22 +101,29 @@
       source = ./bin/unreview;
       executable = true;
     };
-    # Global agent prompts, one per CLI: a shared-with-miskatonic section
-    # (also tracked in the personal-desktop repo as agents/*.md — keep both
-    # in sync by hand) plus the rlyeh operating notes (network, fleet,
-    # services) appended to each. opencode would otherwise fall back to
+    # Global agent prompts, one per CLI: the per-CLI section (mechanics of
+    # that harness), then the shared model table (models.md), then the rlyeh
+    # operating notes (network, fleet, services). The per-CLI files and
+    # models.md are also tracked in the personal-desktop repo as agents/*.md;
+    # keep both in sync by hand. opencode would otherwise fall back to
     # ~/.claude/CLAUDE.md, which talks about Claude-only tools, so it gets
     # its own file.
     ".claude/CLAUDE.md".text =
       builtins.readFile ./agents/claude-global.md
       + "\n"
+      + builtins.readFile ./agents/models.md
+      + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
     ".codex/AGENTS.md".text =
       builtins.readFile ./agents/codex-global.md
       + "\n"
+      + builtins.readFile ./agents/models.md
+      + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
     ".config/opencode/AGENTS.md".text =
       builtins.readFile ./agents/opencode-global.md
+      + "\n"
+      + builtins.readFile ./agents/models.md
       + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
     # Skills vendored into the repo so a fresh install has them. Claude Code

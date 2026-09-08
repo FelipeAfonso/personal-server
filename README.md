@@ -22,7 +22,7 @@ modules/
   secrets.nix                 sops-nix wiring (dormant until secrets repo exists)
   backups.nix                 niterra-app Turso dump every 4h -> ~/backups/turso/niterra-app, 7-day retention
 home/felipe/                  home-manager: zsh, tmux, nvim, starship, lazygit, opencode, bin scripts
-  agents/                     global prompts for claude/codex/opencode + vendored skills (unslop, plan-html-workflow)
+  agents/                     global prompts for claude/codex/opencode, shared model table (models.md), vendored skills (unslop, plan-html-workflow)
 ```
 
 ## Design decisions (short version)

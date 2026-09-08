@@ -2,33 +2,21 @@
 
 Every piece of prose you produce for a human (chat replies, commit messages, PR descriptions, docs, plans, comments, copy) goes through the `unslop` skill before it ships. "Goes through" means actually invoking it with the Skill tool (`Skill(skill: "unslop")`) during the turn, before you write the final reply. Applying its rules from memory while the skill sits installed does not count; the invocation is the checkpoint that proves the audit happened, and on machines with the enforcement hooks a Stop gate bounces any substantial reply that skipped it. Load the skill, scan the text against its pattern list, rewrite, then self-audit. The tells that show up most in agent output, gone on sight: no em dashes (periods or commas instead), no "not just X but Y", no rule-of-three padding, no inline-header bullet lists that restate themselves, no chatbot sign-offs, sentence-case headings, plain words over "leverage"/"delve"/"crucial". Sounding like a person beats sounding polished. Only if the skill genuinely isn't installed on the machine you're on, fall back to applying those rules from memory.
 
-# Picking the right models for workflows and subagents
+# Reaching models from Claude Code
 
-Rankings, higher = better. Cost reflects what I actually pay (OpenAI has really generous limits), not list price. Intelligence is how hard a problem you can hand the model unsupervised. Taste covers UI/UX, code quality, API design, and copy.
+The model table, roles and effort rules are in "Picking the right model"
+further down. This section is only the plumbing.
 
-| model         | cost | intelligence | taste |
-| ------------- | ---- | ------------ | ----- |
-| gpt-5.6 terra | 9    | 8            | 6     |
-| sonnet-5      | 5    | 5            | 7     |
-| opus-5        | 5    | 8.5          | 8     |
-| gpt-5.6 sol   | 3    | 8.5          | 8.5   |
-| fable-5       | 2    | 9            | 9     |
-
-How to apply:
-
-- These are defaults, not limits. You have standing permission to override them: if a cheaper model's output doesn't meet the bar, rerun or redo the work with a smarter model without asking. Judge the output, not the price tag. Escalating costs less than shipping mediocre work.
-- Cost is a tie-breaker only; when axes conflict for anything that ships, intelligence > taste > cost.
-- Bulk/mechanical work (clear-spec implementation, data analysis, migrations): gpt-5.6 terra, since it's effectively free. It sits below the taste bar, so keep it off anything user-facing.
-- Anything user-facing (UI, copy, API design) needs taste >= 7. On the gpt side only gpt-5.6 sol clears that bar. It's the one expensive gpt, so spend it where taste and intelligence both matter, not on bulk.
-- Reviews of plans/implementations: fable-5, gpt-5.6 sol, opus-5, optionally gpt-5.6 terra as a cheap extra independent perspective.
-- Never use Haiku or gpt-5.6 luna.
-- Claude models (sonnet-5, opus-5, fable-5) run via the Agent/Workflow `model` parameter.
-- gpt models are only reachable through the Codex CLI: run `codex exec` with a self-contained prompt (`-s read-only` for investigation and data analysis).
-- Always pass the model explicitly with `-m`: `gpt-5.6-terra` or `gpt-5.6-sol`. The CLI's default model is served from OpenAI rather than pinned in `~/.codex/config.toml`, so it can shift under you. Never rely on it. To pin a default anyway, set `model = "<slug>"` at the top level of that config.
-
-Using gpt models inside workflows and subagents (the `model` parameter only takes Claude models, so use a wrapper):
-
-- Spawn a thin Claude wrapper agent with `model: 'sonnet', effort: 'low'` whose prompt instructs it to write a self-contained codex prompt, run `codex exec -m <slug>` via Bash, and return its output. Name the slug in the wrapper's prompt; it has no way to infer which gpt you meant.
+- Claude models run via the Agent/Workflow `model` parameter (`fable`,
+  `opus`, `sonnet`). Always set `effort` too; never leave it on the default.
+- gpt models are only reachable through the Codex CLI: run `codex exec -m
+  <slug> -c model_reasoning_effort="<level>"` with a self-contained prompt
+  (`-s read-only` for investigation and data analysis).
+- Inside workflows and subagents the `model` parameter only takes Claude
+  models, so wrap: spawn a thin agent with `model: 'sonnet', effort: 'low'`
+  whose prompt writes a self-contained codex prompt, runs `codex exec` via
+  Bash, and returns the output. Name the slug and the effort in the wrapper's
+  prompt; it has no way to infer which gpt you meant.
 
 # Presenting plans
 
