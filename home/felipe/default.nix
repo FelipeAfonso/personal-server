@@ -113,17 +113,23 @@
       + "\n"
       + builtins.readFile ./agents/models.md
       + "\n"
+      + builtins.readFile ./agents/workflow.md
+      + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
     ".codex/AGENTS.md".text =
       builtins.readFile ./agents/codex-global.md
       + "\n"
       + builtins.readFile ./agents/models.md
       + "\n"
+      + builtins.readFile ./agents/workflow.md
+      + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
     ".config/opencode/AGENTS.md".text =
       builtins.readFile ./agents/opencode-global.md
       + "\n"
       + builtins.readFile ./agents/models.md
+      + "\n"
+      + builtins.readFile ./agents/workflow.md
       + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
     # Skills vendored into the repo so a fresh install has them. Claude Code

@@ -71,13 +71,8 @@ agent-managed via EnterWorktree/ExitWorktree.
 
 ## Branch + PR
 
-- All work happens on a branch and lands via PR. Base: `dev` if the repo has
-  one, else `main`. Always pass the base explicitly
-  (`gh pr create --base ...`); repo default branches can't be trusted.
-- Hotfix exception, may commit directly to the base branch in the main
-  checkout, no worktree needed: single file, ≤ ~10 changed lines, no
-  API/behavior-surface change, build and tests pass. When in doubt, it is not
-  a hotfix. Branch and PR it.
+Follow the shared "Deliver repository changes through a pull request"
+rules below, including the base-branch rule and hotfix exception.
 
 ## Garbage collection (after planning, before starting work)
 

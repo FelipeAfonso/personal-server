@@ -86,11 +86,9 @@ around sandbox or permission failures.
 - When creating worktrees, use supported current tools or conservative
   `git worktree` commands. Never remove the worktree containing the active
   session.
-- Do not assume every task requires a branch, commit, push, or pull request.
-  Perform those actions only when requested or clearly included in the
-  authorized workflow.
-- If opening a pull request, determine the intended base branch and pass it
-  explicitly. Verify tests, the pushed commit, and the final diff first.
+- Follow the shared "Deliver repository changes through a pull request"
+  rules below. Implementation requests include the PR unless the user or
+  repository explicitly specifies another delivery workflow.
 - Never rewrite, discard, or force-push history without explicit authorization.
 
 
