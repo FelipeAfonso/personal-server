@@ -1,37 +1,57 @@
 # Scheduled off-site copies of hosted databases, pulled onto rlyeh.
 #
-# Turso: every 4h, each database below is copied into a local sqlite file
-# (see backups/turso-export.py), written out as a .dump, gzipped into
+# Turso: on its schedule, each database below is copied into a local sqlite
+# file (see backups/turso-export.py), written out as a .dump, gzipped into
 # ~felipe/backups/turso/<name>/, and copies older than a week are dropped.
 # Pruning only runs after a successful export, so a broken token or a
 # Turso outage never shrinks the set that's already on disk.
 #
-# The databases go one after another in a single service: exports that
-# run side by side compete for bandwidth, and Turso drops a transaction
-# stream whose request takes more than ~9 s.
+# Every distinct schedule is one service + timer (turso-backups-<schedule>)
+# that walks its databases one after another: exports that run side by
+# side compete for bandwidth, and Turso drops a transaction stream whose
+# request takes more than ~9 s.
 #
 # Each database has its own read-only, non-expiring token in the secrets
 # repo (turso-<name>-token), minted with:
 #   turso db tokens create <name> --expiration none --read-only
 #
 # Restore: zcat <name>-<stamp>.sql.gz | sqlite3 restored.db
-# Logs:    journalctl -u turso-backups
-# Run now: sudo systemctl start turso-backups
+# Logs:    journalctl -u 'turso-backups-*'
+# Run now: sudo systemctl start turso-backups-every4h   (or -daily)
 { config, lib, pkgs, ... }:
 
 let
+  # systemd OnCalendar strings, local time. Daily sits between two runs of
+  # the 4h group so the two never overlap.
+  schedules = {
+    every4h = "00/4:00";
+    daily = "03:00";
+  };
   databases = {
-    niterra-app = "niterra-app-felipeafonso.aws-us-east-1.turso.io";
-    niterra-backend = "niterra-backend-felipeafonso.aws-us-east-2.turso.io";
-    df-dd-api = "df-dd-api-felipeafonso.aws-us-east-2.turso.io";
-    crisalida = "crisalida-felipeafonso.aws-us-east-1.turso.io";
+    niterra-app = {
+      host = "niterra-app-felipeafonso.aws-us-east-1.turso.io";
+      schedule = "every4h";
+    };
+    niterra-backend = {
+      host = "niterra-backend-felipeafonso.aws-us-east-2.turso.io";
+      schedule = "every4h";
+    };
+    # 43 MB gzipped per copy; a week of 4h copies would be 1.8 GB.
+    df-dd-api = {
+      host = "df-dd-api-felipeafonso.aws-us-east-2.turso.io";
+      schedule = "daily";
+    };
+    crisalida = {
+      host = "crisalida-felipeafonso.aws-us-east-1.turso.io";
+      schedule = "every4h";
+    };
   };
   backupRoot = "/home/felipe/backups/turso";
   keepDays = 7;
 
   # One database: export, dump, gzip, prune. Its own executable rather than
   # a shell function so `set -e` still applies when the loop below calls it
-  # under `||`.
+  # under `if`.
   backupOne = pkgs.writeShellApplication {
     name = "turso-backup-one";
     runtimeInputs = with pkgs; [ python3 gzip sqlite coreutils findutils gnugrep gnused ];
@@ -71,10 +91,13 @@ let
   # Nobody reads journalctl on a headless box, so a failed export leaves a
   # LAST-RUN-FAILED marker next to that database's backups. The next good
   # export removes it. One database failing doesn't stop the others.
+  # Usage: turso-backups <unit-name> <name> <host> [<name> <host>...]
   backupAll = pkgs.writeShellApplication {
     name = "turso-backups";
     runtimeInputs = with pkgs; [ coreutils ];
     text = ''
+      unit=$1
+      shift
       failed=0
       while [ $# -ge 2 ]; do
         name=$1
@@ -85,42 +108,54 @@ let
         else
           failed=1
           mkdir -p ${backupRoot}/"$name"
-          printf '%s export failed at %s\nsee: journalctl -u turso-backups\n' \
-            "$name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > ${backupRoot}/"$name"/LAST-RUN-FAILED
+          printf '%s export failed at %s\nsee: journalctl -u %s\n' \
+            "$name" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$unit" > ${backupRoot}/"$name"/LAST-RUN-FAILED
         fi
       done
       exit $failed
     '';
   };
 
-  args = lib.concatStringsSep " " (lib.mapAttrsToList (name: host: "${name} ${host}") databases);
+  inGroup = key: lib.filterAttrs (_: db: db.schedule == key) databases;
+  unitName = key: "turso-backups-${key}";
 in
 {
+  assertions = [{
+    assertion = lib.all (db: schedules ? ${db.schedule}) (lib.attrValues databases);
+    message = "modules/backups.nix: every database's schedule must be a key of `schedules`";
+  }];
+
   sops.secrets = lib.mapAttrs' (name: _: lib.nameValuePair "turso-${name}-token" { }) databases;
 
-  systemd.services.turso-backups = {
-    description = "Dump the Turso databases to ${backupRoot}";
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      User = "felipe";
-      Group = "users";
-      LoadCredential = lib.mapAttrsToList
-        (name: _: "${name}:${config.sops.secrets."turso-${name}-token".path}")
-        databases;
-      ExecStart = "${backupAll}/bin/turso-backups ${args}";
-      TimeoutStartSec = "2h";
-      Nice = 10;
-    };
-  };
+  systemd.services = lib.mapAttrs' (key: _:
+    let
+      dbs = inGroup key;
+      args = lib.concatStringsSep " " (lib.mapAttrsToList (name: db: "${name} ${db.host}") dbs);
+    in
+    lib.nameValuePair (unitName key) {
+      description = "Dump the ${key} Turso databases to ${backupRoot}";
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        User = "felipe";
+        Group = "users";
+        LoadCredential = lib.mapAttrsToList
+          (name: _: "${name}:${config.sops.secrets."turso-${name}-token".path}")
+          dbs;
+        ExecStart = "${backupAll}/bin/turso-backups ${unitName key} ${args}";
+        TimeoutStartSec = "2h";
+        Nice = 10;
+      };
+    }) schedules;
 
-  systemd.timers.turso-backups = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "00/4:00"; # 00:00, 04:00, ... local time
-      Persistent = true; # catch up a run missed while the box was off
-      RandomizedDelaySec = "5min";
-    };
-  };
+  systemd.timers = lib.mapAttrs' (key: calendar:
+    lib.nameValuePair (unitName key) {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = calendar;
+        Persistent = true; # catch up a run missed while the box was off
+        RandomizedDelaySec = "5min";
+      };
+    }) schedules;
 }
