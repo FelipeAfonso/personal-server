@@ -19,6 +19,11 @@ def main():
         "claude-global.md", "codex-global.md", "opencode-global.md",
         "models.md", "workflow.md", "skills/plan-html-workflow/SKILL.md",
     )]
+    files.extend(
+        path.relative_to(source)
+        for path in sorted((source / "references").glob("*.md"))
+        if path.name != "rlyeh.md"
+    )
     changed = []
     for name in files:
         dest = target / "agents" / name

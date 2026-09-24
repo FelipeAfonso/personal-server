@@ -126,8 +126,17 @@ python3 scripts/sync-agent-prompts.py ../personal-desktop
 The check exits with status 1 if a shared file differs or is missing. To copy
 updates, switch the target repo to a task branch and add `--write`. The script
 refuses to overwrite uncommitted changes in the target files. It also syncs
-the planning skill's instructions. Machine notes stay in their own repo.
+the planning skill's instructions and shared references. Machine notes and
+`references/rlyeh.md` stay in their own repo.
 Commit and review the changes in both repos before deployment.
+
+Keep the always-loaded files short. Procedures live in `agents/references/`
+and install under `~/.agents/references/`; the global instructions say when
+to read each file. Shared references sync to the desktop, while each machine
+owns its own operations reference. Check the links as part of deployment.
+The [model catalog brief](home/felipe/agents/references/model-usage.md) explains
+expected usage under the current routing policy, without claiming measured
+usage or vendor capabilities.
 
 Rlyeh installs these files through Home Manager during `nixos-rebuild switch`.
 On miskatonic, `./export_current --agents-only` installs the agent files

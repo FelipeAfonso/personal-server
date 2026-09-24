@@ -128,6 +128,10 @@
       + builtins.readFile ./agents/workflow.md
       + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
+    ".agents/references" = {
+      source = ./agents/references;
+      recursive = true;
+    };
     # Skills vendored into the repo so a fresh install has them. Claude Code
     # reads ~/.claude/skills; codex and opencode both read ~/.agents/skills.
     # Other entries in those dirs (installed with `npx skills add ...`) are
