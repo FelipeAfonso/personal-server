@@ -14,17 +14,19 @@ Edit repository sources, never generated files. From personal-server:
 ```sh
 python3 scripts/sync-agent-prompts.py ../personal-desktop
 python3 scripts/sync-agent-prompts.py ../personal-desktop --write
+python3 scripts/sync-agent-prompts.py ../personal-laptop
+python3 scripts/sync-agent-prompts.py ../personal-laptop --write
 ```
 
-The first command checks for drift. The second copies shared files onto a
-task branch and refuses to overwrite uncommitted changes. Inspect the diff
-in both repositories, run their required checks, and follow each repository's
-merge and deployment rules. The laptop can be synchronized with the same
-command when its checkout is available and the task includes it.
+Run without `--write` to check for drift. Add `--write` to copy shared files
+onto a task branch; the script refuses to overwrite uncommitted changes.
+Inspect the diff in every affected repository, run its required checks, and
+follow its merge and deployment rules. Sync every fleet repo included in the
+task, even when its machine is offline. Report pending machine deployments.
 
-Home Manager installs rlyeh's files during a system rebuild. On miskatonic,
-`./export_current --agents-only` installs instructions, references, skills,
-and hook scripts. It leaves unrelated desktop settings alone. Compare every
+Home Manager installs rlyeh's files during a system rebuild. On miskatonic
+and yuggoth, `./export_current --agents-only` installs instructions, references,
+skills, and hook scripts. It leaves unrelated machine settings alone. Compare every
 generated prompt with its source and check reference links after deployment.
 Existing conversations may retain older instructions.
 
