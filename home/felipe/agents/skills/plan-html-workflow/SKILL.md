@@ -1,9 +1,9 @@
 ---
 name: plan-html-workflow
-description: Write plans as standalone HTML in the repo's .plans/ directory and publish them with the postplan CLI. Use whenever presenting a plan — implementation plans, architecture plans, migration plans, design explorations, code review explainers, incident reports, research summaries, interactive tuning artifacts — in plan mode or otherwise.
+description: Create standalone HTML plans in a repo's .plans directory when the user requests HTML or a visual artifact would materially help. Supports publishing with postplan when a hosted link is requested or required by the repository workflow. Ordinary chat plans do not need this skill.
 ---
 
-# Plan HTML Workflow
+# Plan HTML workflow
 
 Adapted from the `plan-html-workflow` skill in `AadiJo/postplan` (itself adapted
 from the MIT-licensed `html-it` skill by RoboNuggets and Thariq Shihipar's
@@ -11,6 +11,13 @@ from the MIT-licensed `html-it` skill by RoboNuggets and Thariq Shihipar's
 npm `postplan` CLI (postplan.dev, maintained by t3dotgg) — the upstream skill
 targets a same-named but different project, and its `postplan init` / `new` /
 `publish` commands do not exist here.
+
+## When to use
+
+Keep ordinary plans in chat. Use this skill for a requested HTML plan or when
+an artifact adds useful visual or interactive content. Creating a local file
+does not require publishing it. Upload only when the user requests a hosted
+link or the repository workflow includes publishing.
 
 ## The CLI
 
@@ -96,14 +103,15 @@ prompt`, `Copy as Markdown`) so the user's interaction can feed the next step.
    risks, verification, open questions. Add visual structure only when it
    carries information. Avoid walls of prose — dense sections become tables,
    diagrams, or short lists.
-4. `bunx postplan upload .plans/<file>.html --description "<one-line summary>"`.
-5. Put the returned URL into the `Plan links` section's
+4. When publishing is requested or required, run `bunx postplan upload .plans/<file>.html --description "<one-line summary>"`.
+5. After publishing, put the returned URL into the `Plan links` section's
    `data-postplan-hosted` cell (replacing `pending publish`) and re-upload so
    the hosted page carries its own link.
-6. Reply with **both** links — the local `.plans/...html` path and the hosted
-   URL — plus a brief plain-text summary. Never the URL alone.
+6. Reply with the local file link and a brief summary. Include the hosted URL
+   if published. For a local artifact, leave the hosted link out of the file.
 
-On revision, edit the same file and re-upload the same path; the URL is stable.
+On revision, edit the same file. If it was published, re-upload the same path
+to keep its URL.
 
 If upload fails, don't hide the plan: give the local file link, say briefly why
 publishing failed, include the command to rerun, and fall back to a markdown

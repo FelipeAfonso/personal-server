@@ -1,7 +1,3 @@
-# Writing: always run the unslop skill
-
-Every piece of prose you produce for a human (chat replies, commit messages, PR descriptions, docs, plans, comments, copy) goes through the `unslop` skill before it ships. Load it, scan the text against its pattern list, rewrite, then self-audit. The tells that show up most in agent output, gone on sight: no em dashes (periods or commas instead), no "not just X but Y", no rule-of-three padding, no inline-header bullet lists that restate themselves, no chatbot sign-offs, sentence-case headings, plain words over "leverage"/"delve"/"crucial". Sounding like a person beats sounding polished. If the skill isn't installed on the machine you're on, apply those rules from memory anyway.
-
 # Delegation from opencode
 
 The model table, roles and effort rules are in "Picking the right model"
@@ -48,39 +44,3 @@ Each external prompt must include:
 
 Inspect the resulting diff and run appropriate verification before accepting
 any external worker's output.
-
-# Presenting plans
-
-- Present plans directly and concisely in chat by default.
-- If an applicable installed planning or visualization skill exists, follow
-  it. Do not assume a particular skill or publishing CLI is installed.
-- Include a local or hosted artifact only when it materially improves the
-  plan or the user requests one. A publishing failure must not block delivery
-  of the plan in chat.
-
-# Working-tree safety
-
-- Before editing, inspect relevant repository instructions and the working
-  tree when existing changes could overlap the task.
-- Treat all pre-existing changes as user or other-agent work. Preserve them
-  and avoid overwriting, reverting, stashing, committing, or moving them.
-- A dirty tree is not automatically a blocker. Continue when changes are
-  unrelated and the requested work can be performed safely.
-- Ask the user only when overlapping changes create a real ambiguity or when
-  proceeding requires altering someone else's work.
-- Never perform automatic worktree garbage collection. Do not remove another
-  session's worktree, delete branches, or create cleanup stashes unless the
-  user explicitly requests that cleanup and the targets have been verified.
-
-# Branches, worktrees, commits, and pull requests
-
-- Use the current checkout by default unless the user requests isolation or
-  parallel work makes an isolated worktree necessary.
-- When creating worktrees, use supported current tools or conservative
-  `git worktree` commands. Never remove the worktree containing the active
-  session.
-- Follow the shared "Deliver repository changes through a pull request"
-  rules below. Implementation requests include the PR unless the user or
-  repository explicitly specifies another delivery workflow.
-- Never rewrite, discard, or force-push history without explicit authorization.
-

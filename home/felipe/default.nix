@@ -101,13 +101,9 @@
       source = ./bin/unreview;
       executable = true;
     };
-    # Global agent prompts, one per CLI: the per-CLI section (mechanics of
-    # that harness), then the shared model table (models.md), then the rlyeh
-    # operating notes (network, fleet, services). The per-CLI files and
-    # models.md are also tracked in the personal-desktop repo as agents/*.md;
-    # keep both in sync by hand. opencode would otherwise fall back to
-    # ~/.claude/CLAUDE.md, which talks about Claude-only tools, so it gets
-    # its own file.
+    # Per-client instructions, shared models and workflow, then machine notes.
+    # This repo owns the shared sources. scripts/sync-agent-prompts.py checks
+    # or updates the copies in personal-desktop and personal-laptop.
     ".claude/CLAUDE.md".text =
       builtins.readFile ./agents/claude-global.md
       + "\n"

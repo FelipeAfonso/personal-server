@@ -110,6 +110,32 @@ No browser runs on rlyeh; your local browser does the work.
 - **Actually seeing a GUI**: `ssh -X rlyeh chromium` (slow but real), or
   `xvfb-run <app>` + `import -window root shot.png` for agent-style captures.
 
+## Shared agent instructions
+
+`home/felipe/agents/` owns the shared instructions for Claude, Codex, and
+OpenCode. Each installed file combines its client instructions, `models.md`,
+`workflow.md`, and the machine's operating notes. Change common policy in
+`workflow.md`; keep client tool details in `<cli>-global.md`.
+
+Check the copies in another fleet repository before deploying:
+
+```sh
+python3 scripts/sync-agent-prompts.py ../personal-desktop
+```
+
+The check exits with status 1 if a shared file differs or is missing. To copy
+updates, switch the target repo to a task branch and add `--write`. The script
+refuses to overwrite uncommitted changes in the target files. It also syncs
+the planning skill's instructions. Machine notes stay in their own repo.
+Commit and review the changes in both repos before deployment.
+
+Rlyeh installs these files through Home Manager during `nixos-rebuild switch`.
+On miskatonic, `./export_current --agents-only` installs the agent files
+without exporting unrelated desktop configs. After deploying, compare all
+three installed files with the concatenated sources. Existing conversations
+may still contain earlier instructions; start a fresh session for the new
+policy.
+
 ## Validation
 
 - `nix flake check` and
