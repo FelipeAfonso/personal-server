@@ -145,6 +145,63 @@ three installed files with the concatenated sources. Existing conversations
 may still contain earlier instructions; start a fresh session for the new
 policy.
 
+## Weekend maintenance
+
+`rlyeh-maintenance.timer` starts on the machine every Sunday at 02:00
+America/Sao_Paulo. Runs end by 06:00. Missed runs do not catch up on weekdays.
+No laptop, T3 session, or desktop app needs to be open.
+
+The store-owned runner creates a separate clone under
+`~/code/personal/personal-server-maintenance/`, updates `nixpkgs`, `disko`,
+`home-manager`, and `sops-nix`, and keeps the private secrets input pinned.
+It runs `nix flake check` and builds the full system. A failed build gets
+one repair attempt from GPT-5.6 Sol at high effort; GPT-6 Astra independently
+reviews the final changes at high effort. Both use the existing Codex account
+login. Missing models, expired authentication, and quota failures stop the run;
+there is no paid API fallback. Models follow the installed bucket catalog;
+weekly usage is currently unknown, so the normal Reasoning preference applies.
+
+Agents run as Felipe in temporary systemd services with a private PID
+namespace, a read-only system, and access to their checkout and Codex state.
+Docker, privileged Nix sockets, systemd buses, host keys, secrets, T3 files,
+and the user service configuration are hidden. Network connections to the
+machine's own addresses are blocked. Codex authentication and session state
+remain shared with Felipe's existing account. The trusted runner performs
+the builds, GitHub delivery, merge, and privileged activation. Agent repairs
+can change only the lockfile and dependency declarations in `modules/dev.nix`
+and `modules/headless-gfx.nix`. Broader repairs need a separate task.
+
+Successful, reviewed updates reuse one maintenance PR and merge only the
+verified commit against the unchanged remote `main`. Activation must pass a
+dry run. A deployment retry must match the exact system closure and Git tree
+of a recorded approval; an empty update diff alone cannot authorize a new
+system. Changes that affect systemd, Home Manager, T3, its relay, the user
+manager, SSH, Tailscale, or networking remain for a separate maintenance
+decision. Reboots are always deferred. Deployment verifies SSH, Tailscale,
+and the same running T3 process. An independent ten-minute watchdog restores
+the previous system if activation or health checks fail. The previous system
+and current candidate have GC roots; run evidence and failed clones remain
+available without pinning every old system closure.
+
+Inspect scheduling and the latest result:
+
+```sh
+systemctl list-timers rlyeh-maintenance.timer
+sudo cat /var/lib/rlyeh-maintenance/status.json
+journalctl -u rlyeh-maintenance.service
+```
+
+Check authentication, the pinned build, the sandboxed reviewer, and T3 health without updating,
+merging, or deploying:
+
+```sh
+sudo rlyeh-maintenance --preflight
+```
+
+Starting the service manually still enforces the Sunday 02:00-06:00 window.
+To pause maintenance, stop `rlyeh-maintenance.timer`; remove its `wantedBy`
+declaration and rebuild for a permanent pause.
+
 ## Validation
 
 - `nix flake check` and

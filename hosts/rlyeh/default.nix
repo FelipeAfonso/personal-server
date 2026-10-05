@@ -11,6 +11,7 @@
     ../../modules/headless-gfx.nix
     ../../modules/secrets.nix
     ../../modules/backups.nix
+    ../../modules/maintenance.nix
   ];
 
   networking.hostName = "rlyeh";
