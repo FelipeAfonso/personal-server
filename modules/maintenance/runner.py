@@ -71,7 +71,7 @@ def check_scope(original_lock, current_lock, changed):
 
 def check_activation(output, previous, candidate):
     for line in output.splitlines():
-        if re.search(r"would NOT restart", line, re.I):
+        if re.search(r"would NOT (?:restart|stop)", line, re.I):
             continue
         if not re.search(r"stop|restart|reload|start", line, re.I):
             continue

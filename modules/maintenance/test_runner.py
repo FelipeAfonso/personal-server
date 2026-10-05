@@ -58,7 +58,8 @@ class PolicyTests(unittest.TestCase):
                 runner.check_activation("would reload the following units: dbus-broker.service, tailscaled.service", before, after)
             (after / "systemd").unlink()
             (after / "systemd").symlink_to("/nix/store/new-systemd")
-            runner.check_activation("would NOT restart the following units: user@1000.service", before, after)
+            for action in ("restart", "stop"):
+                runner.check_activation(f"would NOT {action} the following units: user@1000.service", before, after)
             runner.check_activation("would restart the following units: home-manager-felipe.service", before, after)
 
     def test_home_manager_cannot_manage_t3_files(self):
