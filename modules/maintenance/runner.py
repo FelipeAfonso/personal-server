@@ -4,6 +4,7 @@
 import argparse
 import datetime as dt
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -21,7 +22,7 @@ PUBLIC_INPUTS = ["nixpkgs", "disko", "home-manager", "sops-nix"]
 REPAIR_FILES = {"flake.lock", "modules/dev.nix", "modules/headless-gfx.nix"}
 ZONE = ZoneInfo("America/Sao_Paulo")
 PROTECTED_UNITS = re.compile(
-    r"t3|relay|user@|user-runtime-dir@|home-manager-felipe|"
+    r"t3|relay|user@|user-runtime-dir@|"
     r"tailscale|sshd|systemd-logind|network|dbus", re.I
 )
 
@@ -58,14 +59,20 @@ def check_scope(original_lock, current_lock, changed):
     for name in ("secrets", "root"):
         if original_lock["nodes"][name] != current_lock["nodes"][name]:
             raise MaintenanceError(f"Protected flake lock node changed: {name}")
+    for name in PUBLIC_INPUTS:
+        original = original_lock["nodes"][name]["original"]
+        current = current_lock["nodes"][name]
+        if current["original"] != original:
+            raise MaintenanceError(f"Public input source declaration changed: {name}")
+        for key in ("owner", "repo", "type"):
+            if current["locked"][key] != original[key]:
+                raise MaintenanceError(f"Public input source changed: {name}")
 
 
 def check_activation(output, previous, candidate):
-    # A new systemd could reexec the user manager and interrupt T3. Package
-    # changes remain in a verified PR until a separate maintenance decision.
-    if (previous / "systemd").resolve() != (candidate / "systemd").resolve():
-        raise MaintenanceError("Activation deferred: systemd changes could interrupt T3")
     for line in output.splitlines():
+        if re.search(r"would NOT restart", line, re.I):
+            continue
         if not re.search(r"stop|restart|reload|start", line, re.I):
             continue
         for token in line.split(":", 1)[-1].replace(",", " ").split():
@@ -74,6 +81,39 @@ def check_activation(output, previous, candidate):
                 continue
             if PROTECTED_UNITS.search(token):
                 raise MaintenanceError(f"Activation deferred: {line.strip()}")
+
+
+def check_home_manager(system):
+    unit = system / "etc/systemd/system/home-manager-felipe.service"
+    commands = re.findall(r"^ExecStart=(.*)$", unit.read_text(), re.M)
+    if len(commands) != 1:
+        raise MaintenanceError("Unrecognized Home Manager activation command")
+    generations = re.findall(r"/nix/store/[a-z0-9]{32}-home-manager-generation(?=\s|$)", commands[0])
+    if len(generations) != 1:
+        raise MaintenanceError("Cannot inspect Home Manager generation")
+    generation = Path(generations[0])
+    if not (generation / "activate").is_file():
+        raise MaintenanceError("Missing Home Manager activation")
+    files = generation / "home-files"
+    if not files.is_dir():
+        raise MaintenanceError("Missing Home Manager managed-file manifest")
+    if (files / ".t3").exists() or (files / ".t3").is_symlink():
+        raise MaintenanceError("Home Manager would manage protected T3 files")
+    for relative in (".config/systemd/user", ".local/share/systemd/user"):
+        tree = files / relative
+        if not tree.exists():
+            continue
+        visited = set()
+        def unreadable(error):
+            raise MaintenanceError("Unreadable Home Manager user-unit manifest") from error
+
+        for directory, dirs, names in os.walk(tree, followlinks=True, onerror=unreadable):
+            resolved = Path(directory).resolve(strict=True)
+            if not str(resolved).startswith("/nix/store/") or resolved in visited:
+                raise MaintenanceError("Unrecognized Home Manager user-unit manifest")
+            visited.add(resolved)
+            if any(re.search(r"t3|relay", name, re.I) for name in dirs + names):
+                raise MaintenanceError("Home Manager would manage T3 or relay units")
 
 
 class Runner:
@@ -90,7 +130,6 @@ class Runner:
         # libgit2 reads XDG configuration, but does not honor Git's command
         # override environment for ownership checks. Trust just this checkout.
         (self.git_config / "git/config").write_text(f"[safe]\n\tdirectory = {self.checkout}\n")
-        self.pr = None
         self.merged = False
         self.previous = Path("/run/current-system").resolve()
 
@@ -120,13 +159,10 @@ class Runner:
     def git(self, *args):
         return self.command(["git", *args], user=True, cwd=self.checkout).strip()
 
-    def gh(self, *args):
-        return self.command(["gh", *args, "--repo", self.config["repository"]], user=True).strip()
-
     def status(self, stage, **details):
         report = {"stage": stage, "time": dt.datetime.now(ZONE).isoformat(),
                   "run": str(self.run_dir), "checkout": str(self.checkout),
-                  "pr": self.pr, **details}
+                  "branch": self.config["branch"], **details}
         data = json.dumps(report, indent=2) + "\n"
         (self.run_dir / "status.json").write_text(data)
         temporary = self.state / "status.json.new"
@@ -148,12 +184,8 @@ class Runner:
                 raise MaintenanceError(f"Configured model unavailable: {self.config[role]}")
         self.command(["git", "clone", "--no-checkout", self.config["remote"], self.checkout], user=True)
         self.base = self.git("rev-parse", f"origin/{self.config['base']}")
-        prs = json.loads(self.gh("pr", "list", "--head", self.config["branch"],
-                                 "--base", self.config["base"], "--json", "url,headRefOid"))
-        if len(prs) > 1:
-            raise MaintenanceError("Multiple maintenance PRs need reconciliation")
-        self.pr = prs[0]["url"] if prs else None
-        if self.pr:
+        pending = self.git("ls-remote", "origin", f"refs/heads/{self.config['branch']}")
+        if pending:
             self.git("checkout", "-b", self.config["branch"], f"origin/{self.config['branch']}")
             self.git("merge", "--no-edit", self.base)
         else:
@@ -298,12 +330,7 @@ Run unslop on issue text. Report uncertainty as an issue.""", schema)
         # history is rewritten and GitHub auto-deletion is harmless.
         self.git("push", f"--force-with-lease={ref}:{commit}", "origin", f":{ref}")
 
-    def publish(self, draft=False):
-        if self.pr:
-            data = json.loads(self.gh("pr", "view", self.pr, "--json", "state,isDraft"))
-            if data["state"] != "OPEN":
-                self.merged = data["state"] == "MERGED"
-                raise MaintenanceError("Maintenance PR is already closed; refusing to rewrite its branch")
+    def publish(self):
         self.scope()
         if self.git("status", "--porcelain"):
             self.git("add", "--", *sorted(self.scope()))
@@ -313,44 +340,32 @@ Run unslop on issue text. Report uncertainty as an issue.""", schema)
         remote = self.git("ls-remote", "origin", f"refs/heads/{self.config['branch']}").split()[0]
         if remote != self.commit:
             raise MaintenanceError("Pushed commit does not match local commit")
-        body = self.run_dir / "pr-body.md"
-        body.write_text("Updates rlyeh's public Nix inputs, keeping the private secrets input pinned.\n\n"
-                        + ("Maintenance stopped before verification completed. This draft is not eligible "
-                           "for automatic merge or deployment.\n" if draft else
-                           "Validation passed: `nix flake check`, full rlyeh system build, and independent "
-                           "agent review. Activation checks also passed.\n")
-                        + f"\nLocal run evidence: `{self.run_dir}`.\n")
-        body.chmod(0o644)
-        self.run_dir.chmod(0o755)
-        self.state.chmod(0o755)
-        if self.pr:
-            # gh must read the body, but command and review logs stay private.
-            self.gh("pr", "edit", self.pr, "--body-file", str(body))
-            if draft and not data["isDraft"]:
-                self.gh("pr", "ready", self.pr, "--undo")
-            elif not draft and data["isDraft"]:
-                self.gh("pr", "ready", self.pr)
-        else:
-            args = ["pr", "create", "--base", self.config["base"], "--head", self.config["branch"],
-                    "--title", "Update rlyeh system dependencies", "--body-file", str(body)]
-            if draft:
-                args.append("--draft")
-            self.pr = self.gh(*args)
 
     def t3_state(self):
         output = self.command(["env", f"XDG_RUNTIME_DIR=/run/user/{pwd.getpwnam(self.config['user']).pw_uid}",
                                "systemctl", "--user", "show", "t3code.service",
-                               "-p", "ActiveState", "-p", "MainPID"], user=True, timeout=30)
+                               "-p", "ActiveState", "-p", "MainPID", "-p", "FragmentPath",
+                               "-p", "DropInPaths"], user=True, timeout=30)
         values = dict(line.split("=", 1) for line in output.splitlines() if "=" in line)
         if values.get("ActiveState") != "active" or values.get("MainPID") in (None, "0"):
             raise MaintenanceError("T3 is not healthy; refusing activation")
         with socket.create_connection(("127.0.0.1", 3773), timeout=5):
             pass
-        return values["MainPID"]
+        listeners = self.command(["ss", "-ltnp", "sport = :3773"], timeout=30)
+        pids = set(re.findall(r"pid=(\d+)", listeners)) | {values["MainPID"]}
+        if len(pids) < 2:
+            raise MaintenanceError("Cannot identify T3 listener process")
+        identities = {pid: (Path("/proc") / pid / "stat").read_text().rsplit(")", 1)[1].split()[19]
+                      for pid in pids}
+        paths = [values["FragmentPath"], *values.get("DropInPaths", "").split()]
+        definitions = {path: hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in paths}
+        return {"processes": identities, "definitions": definitions}
 
     def activation_plan(self):
         output = self.command([self.candidate / "bin/switch-to-configuration", "dry-activate"], combined=True)
         check_activation(output, self.previous, self.candidate)
+        check_home_manager(self.previous)
+        check_home_manager(self.candidate)
         (self.run_dir / "activation-plan.txt").write_text(output)
 
     def deploy(self):
@@ -395,7 +410,7 @@ Run unslop on issue text. Report uncertainty as an issue.""", schema)
                     raise MaintenanceError("Post-activation system/T3 health check failed")
                 record["status"] = "completed"
             self.command(["systemctl", "stop", f"{rollback_name}.timer"])
-        except MaintenanceError:
+        except Exception:
             # Leave the independently armed timer in place if rollback fails.
             if mutation_started:
                 rollback_system(rollback)
@@ -463,7 +478,11 @@ is only a runtime/authentication check and does not authorize any deployment."""
         latest = self.git("ls-remote", "origin", f"refs/heads/{self.config['base']}").split()[0]
         if latest != self.base:
             raise MaintenanceError("Remote base changed during validation; retry next Sunday")
-        self.gh("pr", "merge", self.pr, "--squash", "--match-head-commit", commit)
+        self.git("merge-base", "--is-ancestor", self.base, commit)
+        # The explicit ancestry check forbids history rewriting; the lease
+        # atomically rejects any main movement after our remote-base check.
+        ref = f"refs/heads/{self.config['base']}"
+        self.git("push", f"--force-with-lease={ref}:{self.base}", "origin", f"{commit}:{ref}")
         self.merged = True
         self.git("fetch", "origin", self.config["base"])
         if self.git("rev-parse", f"origin/{self.config['base']}^{{tree}}") != self.git("rev-parse", "HEAD^{tree}"):
@@ -551,11 +570,11 @@ def main():
             runner.execute(args.preflight)
         except Exception as exc:
             runner.status("failed", error=str(exc))
-            # Preserve failed work as one draft PR, without hiding the error.
+            # Preserve failed work on the maintenance branch, without hiding the error.
             if not args.preflight and not runner.merged and (runner.checkout / "flake.lock").exists():
                 try:
                     if runner.scope():
-                        runner.publish(draft=True)
+                        runner.publish()
                         runner.status("failed", error=str(exc))
                 except Exception as publish_error:
                     print(f"Could not publish failed work: {publish_error}", file=sys.stderr)

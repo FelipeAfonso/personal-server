@@ -20,10 +20,12 @@ class PolicyTests(unittest.TestCase):
                 self.assertEqual(runner.in_window(moment), weekday == 6 and 2 <= hour < 6)
 
     def test_public_update_preserves_private_and_root_nodes(self):
-        original = {"nodes": {"secrets": {"rev": "private-pin"}, "root": {"inputs": {"secrets": "secrets"}},
-                              "nixpkgs": {"rev": "old"}}}
+        original = {"nodes": {"secrets": {"rev": "private-pin"}, "root": {"inputs": {"secrets": "secrets"}}}}
+        for name in runner.PUBLIC_INPUTS:
+            source = {"type": "github", "owner": "trusted", "repo": name}
+            original["nodes"][name] = {"original": source, "locked": {**source, "rev": "old"}}
         changed = copy.deepcopy(original)
-        changed["nodes"]["nixpkgs"]["rev"] = "new"
+        changed["nodes"]["nixpkgs"]["locked"]["rev"] = "new"
         runner.check_scope(original, changed, ["flake.lock"])
         for name in ("secrets", "root"):
             bad = copy.deepcopy(changed)
@@ -32,6 +34,11 @@ class PolicyTests(unittest.TestCase):
                 runner.check_scope(original, bad, ["flake.lock"])
         with self.assertRaises(runner.MaintenanceError):
             runner.check_scope(original, changed, ["modules/agents.nix"])
+        for part in ("original", "locked"):
+            bad = copy.deepcopy(changed)
+            bad["nodes"]["nixpkgs"][part]["owner"] = "unexpected-source"
+            with self.assertRaises(runner.MaintenanceError):
+                runner.check_scope(original, bad, ["flake.lock"])
 
     def test_protected_activation_is_deferred(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -41,7 +48,7 @@ class PolicyTests(unittest.TestCase):
             after.mkdir()
             for path in (before, after):
                 (path / "systemd").symlink_to("/nix/store/same-systemd")
-            for unit in ["home-manager-felipe.service", "tailscaled.service", "sshd.service",
+            for unit in ["tailscaled.service", "sshd.service",
                          "user@1000.service", "t3code.service", "systemd-logind.service"]:
                 with self.assertRaises(runner.MaintenanceError, msg=unit):
                     runner.check_activation(f"would restart the following units: {unit}", before, after)
@@ -51,8 +58,27 @@ class PolicyTests(unittest.TestCase):
                 runner.check_activation("would reload the following units: dbus-broker.service, tailscaled.service", before, after)
             (after / "systemd").unlink()
             (after / "systemd").symlink_to("/nix/store/new-systemd")
+            runner.check_activation("would NOT restart the following units: user@1000.service", before, after)
+            runner.check_activation("would restart the following units: home-manager-felipe.service", before, after)
+
+    def test_home_manager_cannot_manage_t3_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            system = pathlib.Path(directory) / "system"
+            unit = system / "etc/systemd/system/home-manager-felipe.service"
+            unit.parent.mkdir(parents=True)
+            unit.write_text("ExecStart=/nix/store/" + "a" * 32 + "-hm-setup-env /nix/store/" + "b" * 32 + "-home-manager-generation\n")
+            generation = pathlib.Path(directory) / "generation"
+            generation.mkdir()
+            (generation / "activate").touch()
+            (generation / "home-files").mkdir()
+            with patch.object(runner, "Path", return_value=generation):
+                runner.check_home_manager(system)
+                (generation / "home-files/.t3").mkdir()
+                with self.assertRaises(runner.MaintenanceError):
+                    runner.check_home_manager(system)
+            unit.write_text("ExecStart=/unexpected/activation\n")
             with self.assertRaises(runner.MaintenanceError):
-                runner.check_activation("", before, after)
+                runner.check_home_manager(system)
 
     def test_rejected_review_cannot_be_treated_as_passed(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -88,7 +114,6 @@ class LifecycleRunner(runner.Runner):
         (self.checkout / "flake.lock").write_text("{}")
         self.config = {"user": "felipe", "base": "main", "branch": "maintenance/weekend-updates"}
         self.base = "base"
-        self.pr = "https://example.invalid/pr/1"
         self.previous = pathlib.Path("/nix/store/previous")
         self.candidate = pathlib.Path("/nix/store/candidate")
         self.changes = changes
@@ -128,7 +153,7 @@ class LifecycleRunner(runner.Runner):
                 return "commit\trefs/heads/maintenance/weekend-updates"
             return ("different-base" if self.moved_base else "base") + "\trefs/heads/main"
         if args[0] == "push" and args[1].startswith("--force-with-lease="):
-            self.events.append("retire-branch")
+            self.events.append("merge" if "refs/heads/main:" in args[1] else "retire-branch")
         return ""
 
     def review(self, commit):
@@ -143,20 +168,15 @@ class LifecycleRunner(runner.Runner):
     def previously_approved(self):
         return self.approved
 
-    def publish(self, draft=False):
+    def publish(self, failed=False):
         self.events.append("publish")
-
-    def gh(self, *args):
-        if args[:2] == ("pr", "merge"):
-            self.events.append("merge")
-        return ""
 
     def deploy(self):
         self.events.append("deploy")
 
 
 class LifecycleTests(unittest.TestCase):
-    def test_pending_pr_with_clean_worktree_can_be_reviewed_and_merged(self):
+    def test_pending_branch_with_clean_worktree_can_be_reviewed_and_merged(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(runner.os, "chown"):
             instance = LifecycleRunner(directory)
             instance.execute()
@@ -199,6 +219,34 @@ class LifecycleTests(unittest.TestCase):
                     instance.execute()
             self.assertNotIn("merge", instance.events)
             self.assertNotIn("deploy", instance.events)
+
+    def test_oserror_after_switch_triggers_immediate_rollback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            instance = LifecycleRunner(directory)
+            instance.run_dir = instance.state = pathlib.Path(directory)
+            instance.stamp = "test"
+            instance.config_path = "/immutable-config"
+            original_resolve = pathlib.Path.resolve
+            switched = False
+
+            def command(args, **kwargs):
+                nonlocal switched
+                if str(args[0]).endswith("switch-to-configuration"):
+                    switched = True
+                return ""
+
+            def resolve(path, *args, **kwargs):
+                if str(path) in ("/run/current-system", "/nix/var/nix/profiles/system"):
+                    return instance.candidate if switched else instance.previous
+                return original_resolve(path, *args, **kwargs)
+
+            with patch.object(instance, "command", side_effect=command), \
+                    patch.object(instance, "t3_state", side_effect=["100", OSError("socket failed")]), \
+                    patch.object(runner.Path, "resolve", resolve), \
+                    patch.object(runner, "rollback_system") as rollback:
+                with self.assertRaises(OSError):
+                    runner.Runner.deploy(instance)
+                rollback.assert_called_once_with(instance.run_dir / "rollback.json")
 
     def test_profile_only_activation_failure_restores_profile_and_activation(self):
         with tempfile.TemporaryDirectory() as directory:

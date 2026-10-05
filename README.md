@@ -171,14 +171,17 @@ the builds, GitHub delivery, merge, and privileged activation. Agent repairs
 can change only the lockfile and dependency declarations in `modules/dev.nix`
 and `modules/headless-gfx.nix`. Broader repairs need a separate task.
 
-Successful, reviewed updates reuse one maintenance PR and merge only the
-verified commit against the unchanged remote `main`. Activation must pass a
+Successful, reviewed updates reuse one maintenance branch and fast-forward
+only the verified commit onto the unchanged remote `main`. No PR is created,
+following this repository's delivery workflow. Activation must pass a
 dry run. A deployment retry must match the exact system closure and Git tree
 of a recorded approval; an empty update diff alone cannot authorize a new
-system. Changes that affect systemd, Home Manager, T3, its relay, the user
-manager, SSH, Tailscale, or networking remain for a separate maintenance
-decision. Reboots are always deferred. Deployment verifies SSH, Tailscale,
-and the same running T3 process. An independent ten-minute watchdog restores
+system. Home Manager activation is allowed only when neither generation
+manages T3 files or relay units. Actual stops or restarts of T3, its relay,
+the user manager, SSH, Tailscale, or networking remain for a separate
+maintenance decision. Reboots are always deferred. Deployment verifies SSH,
+Tailscale, and the same T3 launcher and listener processes and service
+definitions. An independent ten-minute watchdog restores
 the previous system if activation or health checks fail. The previous system
 and current candidate have GC roots; run evidence and failed clones remain
 available without pinning every old system closure.
