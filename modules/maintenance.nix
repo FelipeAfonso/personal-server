@@ -11,8 +11,9 @@ let
     state = "/var/lib/rlyeh-maintenance";
     user = "felipe";
     codex = "/home/felipe/.bun/bin/codex";
-    repairModel = "gpt-5.6-sol";
-    reviewModel = "gpt-6-astra";
+    # Model classes; the runner picks the newest listed version of each.
+    repairFamily = "sol";
+    reviewFamily = "astra";
   });
   runner = pkgs.writeShellApplication {
     name = "rlyeh-maintenance";

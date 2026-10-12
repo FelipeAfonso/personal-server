@@ -52,7 +52,8 @@ Read [delegation.md](delegation.md) for identifiers and client mechanics.
 
 ## Historical preference scores
 
-These personal scores are retained for reference. They do not override the
+These personal scores are retained for reference and apply to the versions
+listed, not to newer releases in each class. They do not override the
 bucket policy and are not vendor benchmarks, prices, or measured usage. The
 old cost scale was ambiguous; do not infer spending from these numbers.
 Intelligence describes independent problem solving. Taste covers UI, code,
