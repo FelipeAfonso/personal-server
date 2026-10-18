@@ -13,6 +13,20 @@ spec.loader.exec_module(runner)
 
 
 class PolicyTests(unittest.TestCase):
+    def test_newest_listed_model_in_family_is_selected(self):
+        models = [
+            {"slug": "gpt-5.6-sol", "visibility": "list"},
+            {"slug": "gpt-6.1-sol", "visibility": "list"},
+            {"slug": "gpt-6-sol", "visibility": "list"},
+            {"slug": "gpt-7-sol", "visibility": "hide"},
+            {"slug": "gpt-6.2-sol", "visibility": "list", "upgrade": {"model": "gpt-6.1-sol"}},
+            {"slug": "gpt-6.5-astra", "visibility": "list"},
+        ]
+        self.assertEqual(runner.newest_model(models, "sol"), "gpt-6.1-sol")
+        self.assertEqual(runner.newest_model(models, "astra"), "gpt-6.5-astra")
+        with self.assertRaises(runner.MaintenanceError):
+            runner.newest_model(models, "terra")
+
     def test_only_sunday_night_is_allowed(self):
         for weekday in range(7):
             for hour in range(24):
@@ -87,6 +101,7 @@ class PolicyTests(unittest.TestCase):
             instance.checkout = pathlib.Path(directory)
             instance.run_dir = pathlib.Path(directory)
             instance.base = "base"
+            instance.models = {"review": "gpt-6-astra"}
             instance.agent = lambda *args: '{"approved": false, "issues": ["Unsafe change"]}'
             with self.assertRaises(runner.MaintenanceError):
                 instance.review("candidate")
@@ -97,6 +112,7 @@ class PolicyTests(unittest.TestCase):
             instance.checkout = pathlib.Path(directory)
             instance.run_dir = pathlib.Path(directory)
             instance.base = "base"
+            instance.models = {"review": "gpt-6-astra"}
             instance.agent = lambda *args: "Not JSON"
             with self.assertRaises(ValueError):
                 instance.review("candidate")

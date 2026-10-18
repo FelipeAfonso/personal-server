@@ -18,7 +18,7 @@ checkout. Don't create thin wrapper agents when a direct CLI call suffices.
 Select a bucket and set its model and effort explicitly. Use the current
 bucket table in the global instructions; do not infer effort from the model's
 name or apply a blanket setting. Opus uses medium for Implementation and
-xhigh for Product. GPT-5.6 Sol uses high. Sonnet wrappers may use low.
+xhigh for Product. Sol uses high. Sonnet wrappers may use low.
 
 Routine workers only implement settled instructions. Give them acceptance
 criteria and return unresolved decisions to Reasoning. Use Reasoning for
@@ -52,7 +52,7 @@ Use the client's supported Claude model and effort parameters. For GPT work,
 call Codex directly through Bash:
 
 ```sh
-codex exec -m gpt-6-astra -c model_reasoning_effort="high" -s read-only \
+codex exec -m <newest astra slug> -c model_reasoning_effort="high" -s read-only \
   "<self-contained prompt>"
 ```
 
@@ -67,12 +67,19 @@ the commands and permission boundaries above.
 
 ## Catalog identifiers
 
-Claude CLI aliases: `fable`, `opus`, `sonnet`. The current preferences name
-Fable 5.1, Opus 5, and Sonnet 5; verify the installed client's available models
-when selecting a worker.
+The catalog names model classes: Astra, Fable, Opus, Sol, Sonnet, Terra, and
+Luna. Always resolve a class to its newest generally available version; do
+not pin an older version unless Felipe asks for one.
 
-Codex identifiers: `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra`,
-`gpt-5.6-luna`. Luna is retained in the catalog without an active bucket;
-do not select it as an automatic fallback. Do not assume a listed identifier
-is exposed by every client. If a required effort level is unavailable, report
-that limitation and use an eligible alternate rather than silently lowering it.
+Claude CLI aliases `fable`, `opus`, and `sonnet` already resolve to the newest
+model in each class, so pass the alias rather than a full model name.
+
+Codex slugs follow `gpt-<version>-<class>`. List them from
+`~/.codex/models_cache.json` and pick the highest version for the class among
+models with `"visibility": "list"`. Skip hidden models and models scheduled
+for retirement. If the cache is missing or stale, run `codex` once to refresh
+it, or report the limitation. Luna is retained in the catalog without an
+active bucket; do not select it as an automatic fallback. Do not assume a
+listed identifier is exposed by every client. If a required effort level is
+unavailable, report that limitation and use an eligible alternate rather than
+silently lowering it.

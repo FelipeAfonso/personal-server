@@ -11,7 +11,14 @@
     };
   };
 
-  services.tailscale.enable = true;
+  services.tailscale = {
+    enable = true;
+    # Accept app connector routes (niterra-egress gives a fixed IP for
+    # IP-allowlisted production endpoints). "client" loosens rp_filter so
+    # replies on routed prefixes aren't dropped.
+    useRoutingFeatures = "client";
+    extraSetFlags = [ "--accept-routes" ];
+  };
 
   networking.firewall = {
     enable = true;

@@ -155,7 +155,7 @@ The store-owned runner creates a separate clone under
 `~/code/personal/personal-server-maintenance/`, updates `nixpkgs`, `disko`,
 `home-manager`, and `sops-nix`, and keeps the private secrets input pinned.
 It runs `nix flake check` and builds the full system. A failed build gets
-one repair attempt from GPT-5.6 Sol at high effort; GPT-6 Astra independently
+one repair attempt from the newest Sol at high effort; the newest Astra independently
 reviews the final changes at high effort. Both use the existing Codex account
 login. Missing models, expired authentication, and quota failures stop the run;
 there is no paid API fallback. Models follow the installed bucket catalog;

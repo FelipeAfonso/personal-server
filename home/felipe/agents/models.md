@@ -2,13 +2,15 @@
 
 Choose a bucket for each delegated task. The active agent handles ordinary
 conversation and coordination. Effort belongs to the bucket assignment.
+Each entry names a model class, not a version. Use the newest generally
+available model in that class that the client exposes.
 
 | Bucket | Work | Preferred | Alternate |
 | --- | --- | --- | --- |
-| Reasoning | Architecture, high-level thinking, hard debugging, investigations | GPT-6 Astra, high | Fable 5.1, high |
-| Implementation | Substantial coding, refactors, tests after design decisions | Opus 5, medium | GPT-5.6 Sol, high |
-| Product | UI implementation, UX, product copy, API design | Fable 5.1, high | Opus 5, xhigh |
-| Routine | Small implementations and transformations with settled instructions | Sonnet 5, medium | GPT-5.6 Terra, medium |
+| Reasoning | Architecture, high-level thinking, hard debugging, investigations | Astra, high | Fable, high |
+| Implementation | Substantial coding, refactors, tests after design decisions | Opus, medium | Sol, high |
+| Product | UI implementation, UX, product copy, API design | Fable, high | Opus, xhigh |
+| Routine | Small implementations and transformations with settled instructions | Sonnet, medium | Terra, medium |
 
 Routine must not choose architecture, resolve design tradeoffs, or perform
 substantive review. Give it clear instructions and acceptance criteria. Return

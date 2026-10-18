@@ -1,16 +1,17 @@
 # Model buckets and expected usage
 
 This describes Felipe's agreed routing policy as of September 24, 2026.
+Buckets name model classes; each resolves to the newest available version.
 Usage estimates follow the assignments; they are not measured calls, tokens,
 costs, or vendor capability claims. Actual usage depends on task mix, available
 allowance, and task-specific model suitability.
 
 | Bucket | Preferred | Alternate | Typical work |
 | --- | --- | --- | --- |
-| Reasoning | GPT-6 Astra, high | Fable 5.1, high | Architecture, high-level thinking, hard debugging, investigations, substantive technical review |
-| Implementation | Opus 5, medium | GPT-5.6 Sol, high | Substantial coding, refactors, tests once design decisions are settled |
-| Product | Fable 5.1, high | Opus 5, xhigh | UI implementation, UX, product copy, API design, user-facing review |
-| Routine | Sonnet 5, medium | GPT-5.6 Terra, medium | Small implementations and transformations with settled instructions and acceptance criteria |
+| Reasoning | Astra, high | Fable, high | Architecture, high-level thinking, hard debugging, investigations, substantive technical review |
+| Implementation | Opus, medium | Sol, high | Substantial coding, refactors, tests once design decisions are settled |
+| Product | Fable, high | Opus, xhigh | UI implementation, UX, product copy, API design, user-facing review |
+| Routine | Sonnet, medium | Terra, medium | Small implementations and transformations with settled instructions and acceptance criteria |
 
 Opus is expected to carry most implementation volume under normal conditions.
 Sol takes substantial coding work when it is more suitable or usage pressure
