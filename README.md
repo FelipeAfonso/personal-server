@@ -126,8 +126,8 @@ python3 scripts/sync-agent-prompts.py ../personal-desktop
 The check exits with status 1 if a shared file differs or is missing. To copy
 updates, switch the target repo to a task branch and add `--write`. The script
 refuses to overwrite uncommitted changes in the target files. It also syncs
-the planning skill's instructions and shared references. Machine notes and
-`references/rlyeh.md` stay in their own repo.
+the planning skill's instructions, all nine vendored tstack skills, and shared
+references. Machine notes and `references/rlyeh.md` stay in their own repo.
 Commit and review the changes in both repos before deployment.
 
 Keep the always-loaded files short. Procedures live in `agents/references/`
@@ -144,6 +144,10 @@ without exporting unrelated desktop configs. After deploying, compare all
 three installed files with the concatenated sources. Existing conversations
 may still contain earlier instructions; start a fresh session for the new
 policy.
+
+The [tstack skills](home/felipe/agents/skills/tstack/README.md) install into
+both Claude's and the shared agent skills directories. Their upstream
+revision and MIT license are vendored alongside the skills.
 
 ## Weekend maintenance
 

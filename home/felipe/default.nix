@@ -1,5 +1,10 @@
 { pkgs, ... }:
 
+let
+  tstackSkills = builtins.filter
+    (name: builtins.pathExists (./agents/skills/tstack + "/${name}/SKILL.md"))
+    (builtins.attrNames (builtins.readDir ./agents/skills/tstack));
+in
 {
   home.username = "felipe";
   home.homeDirectory = "/home/felipe";
@@ -159,5 +164,13 @@
       source = ./agents/hooks/unslop-stop-gate.py;
       executable = true;
     };
-  };
+  } // builtins.listToAttrs (builtins.concatMap (name:
+    map (directory: {
+      name = "${directory}/${name}";
+      value = {
+        source = ./agents/skills/tstack + "/${name}";
+        recursive = true;
+      };
+    }) [ ".claude/skills" ".agents/skills" ]
+  ) tstackSkills);
 }

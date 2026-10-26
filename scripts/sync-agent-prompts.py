@@ -3,6 +3,7 @@
 
 import argparse
 from pathlib import Path
+import shutil
 import subprocess
 
 
@@ -21,6 +22,11 @@ def main():
     )]
     files.extend(
         path.relative_to(source)
+        for path in sorted((source / "skills/tstack").rglob("*"))
+        if path.is_file()
+    )
+    files.extend(
+        path.relative_to(source)
         for path in sorted((source / "references").glob("*.md"))
         if path.name != "rlyeh.md"
     )
@@ -29,7 +35,9 @@ def main():
         dest = target / "agents" / name
         if dest.is_symlink():
             parser.error(f"refusing symlink target: {dest}")
-        if not dest.exists() or dest.read_bytes() != (source / name).read_bytes():
+        src = source / name
+        if (not dest.exists() or dest.read_bytes() != src.read_bytes()
+                or (dest.stat().st_mode & 0o111) != (src.stat().st_mode & 0o111)):
             changed.append(name)
     if not changed:
         print("Shared agent files match.")
@@ -49,7 +57,7 @@ def main():
         for name in changed:
             dest = target / "agents" / name
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_bytes((source / name).read_bytes())
+            shutil.copy2(source / name, dest)
             print(f"Updated agents/{name}")
         return 0
     for name in changed:
