@@ -169,7 +169,8 @@ in
       name = "${directory}/${name}";
       value = {
         source = ./agents/skills/tstack + "/${name}";
-        recursive = true;
+        # Codex discovers directory symlinks but skips symlinked SKILL.md files.
+        recursive = false;
       };
     }) [ ".claude/skills" ".agents/skills" ]
   ) tstackSkills);
