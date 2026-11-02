@@ -1,0 +1,4 @@
+interface:
+  display_name: "Nyarlathotep"
+  short_description: "Read, organize, and draft HEY email"
+  default_prompt: "Use $nyarlathotep to summarize my unread email."
