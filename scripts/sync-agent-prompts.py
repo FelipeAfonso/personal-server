@@ -22,7 +22,8 @@ def main():
     )]
     files.extend(
         path.relative_to(source)
-        for path in sorted((source / "skills/tstack").rglob("*"))
+        for skill in ("skills/tstack", "skills/nyarlathotep")
+        for path in sorted((source / skill).rglob("*"))
         if path.is_file()
     )
     files.extend(

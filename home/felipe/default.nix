@@ -153,6 +153,15 @@ in
       source = ./agents/skills/unslop;
       recursive = true;
     };
+    # Codex discovers directory symlinks but skips symlinked SKILL.md files.
+    ".claude/skills/nyarlathotep" = {
+      source = ./agents/skills/nyarlathotep;
+      recursive = false;
+    };
+    ".agents/skills/nyarlathotep" = {
+      source = ./agents/skills/nyarlathotep;
+      recursive = false;
+    };
     # Hook scripts referenced by ~/.claude/settings.json. That file stays
     # mutable (Claude Code writes to it at runtime, e.g. /config), so the
     # hooks block in it is set by hand; only the scripts are flake-managed.
