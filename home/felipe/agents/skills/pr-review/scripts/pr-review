@@ -237,7 +237,7 @@ def parse_diff(diff):
     """Per file: right-side line numbers GitHub accepts, and changed-line count."""
     files, current, old_path = {}, None, None
     line = old_left = new_left = 0
-    for raw in diff.splitlines():
+    for raw in diff.split("\n"):  # splitlines would also break on form feeds
         if old_left > 0 or new_left > 0:
             # Inside a hunk, so a leading +++ or --- is content, not a header.
             if raw.startswith("+"):
@@ -323,15 +323,18 @@ def run_claude(usage_module, model, effort, prompt, workdir):
     if not claude:
         raise ReviewError("claude CLI not found")
     # --restricted confines the file tools to the workspace; --safe-mode keeps
-    # the user's hooks and global instructions out of the review.
+    # the user's hooks and global instructions out of the review. The tool list
+    # is read-only, so no permission mode is needed.
     result = run(
         [claude, "-p", "--model", model, "--effort", effort, "--safe-mode", "--restricted",
-         "--permission-mode", "plan", "--tools", "Read,Grep,Glob",
+         "--tools", "Read,Grep,Glob",
          "--no-session-persistence", "--output-format", "json",
          "--json-schema", json.dumps(SCHEMA)],
         cwd=workdir, stdin=prompt, timeout=REVIEW_TIMEOUT, check=False)
     try:
         output = json.loads(result.stdout)
+        if not isinstance(output, dict):
+            raise ValueError
     except ValueError:
         raise ReviewError(f"claude gave no result: {(result.stderr or result.stdout).strip()[-400:]}")
     if output.get("is_error") or result.returncode:
@@ -347,6 +350,8 @@ def run_codex(usage_module, model, effort, prompt, workdir):
     codex = usage_module.find_cli("codex")
     if not codex:
         raise ReviewError("codex CLI not found")
+    if not usage_module.codex_on_subscription(codex):
+        raise ReviewError("codex is not signed in with the ChatGPT subscription")
     codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
     slug = usage_module.newest_codex_slug(usage_module.codex_models(codex_home), model)
     if not slug:
@@ -368,6 +373,8 @@ def run_codex(usage_module, model, effort, prompt, workdir):
     result = run(
         [codex, "exec", "-m", slug, "-c", f'model_reasoning_effort="{effort}"',
          "-c", profile, "-c", 'default_permissions="review"',
+         # No connected accounts, plugins, or web: the reviewer reads files only.
+         "--disable", "apps", "--disable", "plugins", "-c", 'web_search="disabled"',
          "--skip-git-repo-check", "--ignore-user-config",
          "-C", str(workdir), "--output-schema", str(schema_file),
          "-o", str(out_file), "-"],
@@ -382,9 +389,11 @@ def clean_review(review):
             or not review["summary"].strip() or not isinstance(review.get("findings"), list):
         raise ReviewError("reviewer output is missing its summary or findings")
     findings = []
-    for item in review.get("findings") or []:
-        if not isinstance(item, dict) or not item.get("title"):
-            continue
+    for item in review["findings"]:
+        # A dropped finding would read as a clean review, so a bad one fails the run.
+        if not isinstance(item, dict) or not str(item.get("title") or "").strip() \
+                or not str(item.get("body") or "").strip():
+            raise ReviewError("reviewer returned a finding without a title or body")
         severity = item.get("severity") if item.get("severity") in SEVERITIES else "minor"
         try:
             line = int(item.get("line") or 0)
@@ -410,7 +419,7 @@ def review_with(candidates, usage_module, prompt, workdir, effort=None):
             review, display = runner(usage_module, model, effort or bucket_effort,
                                      prompt, workdir)
             return candidate, display, clean_review(review), errors
-        except (ReviewError, subprocess.TimeoutExpired) as error:
+        except Exception as error:  # any runner failure hands over to the next model
             errors.append(f"{model}: {error}")
             print(f"  {model} did not finish: {error}", file=sys.stderr)
     raise ReviewError("no reviewer finished: " + "; ".join(errors))
@@ -458,13 +467,15 @@ def post_review(slug, number, payload, workdir):
     return json.loads(result.stdout).get("html_url"), None
 
 
-def origin_slug(cwd):
-    url = git("remote", "get-url", "origin", cwd=cwd, check=False)
-    match = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?/?$", url)
-    return f"{match[1]}/{match[2]}" if match else None
+def repo_slug(cwd):
+    """owner/name of this checkout, as gh resolves it (SSH host aliases included)."""
+    result = run(["gh", "repo", "view", "--json", "nameWithOwner"], cwd=cwd, check=False)
+    if result.returncode:
+        raise ReviewError("gh cannot tell which GitHub repository this checkout is")
+    return json.loads(result.stdout)["nameWithOwner"]
 
 
-def resolve_pr(target, repo, cwd):
+def resolve_pr(target, cwd):
     """(owner/name, number) from a URL, a number, or the current branch."""
     if target:
         match = re.search(r"github\.com/([^/]+/[^/]+)/pull/(\d+)", target)
@@ -472,24 +483,31 @@ def resolve_pr(target, repo, cwd):
             return match[1], int(match[2])
         if not target.lstrip("#").isdigit():
             raise ReviewError(f"not a PR number or URL: {target}")
-        slug = repo or origin_slug(cwd)
-        if not slug:
-            raise ReviewError("cannot tell the repository; pass --repo owner/name")
-        return slug, int(target.lstrip("#"))
-    command = ["gh", "pr", "view", "--json", "url"] + (["--repo", repo] if repo else [])
-    url = json.loads(run(command, cwd=cwd).stdout)["url"]
-    return resolve_pr(url, repo, cwd)
+        return repo_slug(cwd), int(target.lstrip("#"))
+    url = json.loads(run(["gh", "pr", "view", "--json", "url"], cwd=cwd).stdout)["url"]
+    return resolve_pr(url, cwd)
 
 
 def prior_comments(slug, number):
-    """Earlier inline comments and replies, as markdown for the reviewer."""
-    raw = gh_api(f"repos/{slug}/pulls/{number}/comments", "--paginate", "--jq",
-                 ".[] | {id, in_reply_to_id, path, line, user: .user.login, body}")
+    """Earlier reviews, inline threads, and conversation replies, for the reviewer."""
     lines = []
+    raw = gh_api(f"repos/{slug}/pulls/{number}/reviews", "--paginate", "--jq",
+                 ".[] | {user: .user.login, body}")
+    for item in json_stream(raw)[-20:]:
+        if MARKER_PATTERN.search(item.get("body") or ""):
+            lines.append(f"### Earlier review by {item.get('user')}\n\n{item['body']}\n")
+    raw = gh_api(f"repos/{slug}/pulls/{number}/comments", "--paginate", "--jq",
+                 ".[] | {in_reply_to_id, path, line: (.line // .original_line), "
+                 "user: .user.login, body}")
     for item in json_stream(raw)[-200:]:
         reply = "reply" if item.get("in_reply_to_id") else "comment"
         lines.append(f"### {item.get('path')}:{item.get('line')} ({reply} by "
                      f"{item.get('user')})\n\n{item.get('body', '')}\n")
+    raw = gh_api(f"repos/{slug}/issues/{number}/comments", "--paginate", "--jq",
+                 ".[] | {user: .user.login, body}")
+    for item in json_stream(raw)[-50:]:
+        lines.append(f"### Conversation comment by {item.get('user')}\n\n"
+                     f"{item.get('body', '')}\n")
     return "\n".join(lines)
 
 
@@ -541,7 +559,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("pr", nargs="?", help="PR number or URL (default: current branch's PR)")
-    parser.add_argument("--repo", help="owner/name when it differs from origin")
     parser.add_argument("--job", choices=("auto", "reasoning", "product"), default="auto")
     parser.add_argument("--builder", help="model class that wrote the change, e.g. opus")
     parser.add_argument("--effort", help="override the bucket's reasoning effort")
@@ -574,9 +591,9 @@ def main():
                       f"Commits:\n{git('log', '--format=- %s', f'{base}..{sha}', cwd=root)}"
             comments = ""
         else:
-            slug, number = resolve_pr(args.pr, args.repo, root)
-            if (origin_slug(root) or "").lower() != slug.lower():
-                raise ReviewError(f"this checkout's origin is not {slug}")
+            slug, number = resolve_pr(args.pr, root)
+            if repo_slug(root).lower() != slug.lower():
+                raise ReviewError(f"this checkout is not a clone of {slug}")
             pr = json.loads(gh_api(f"repos/{slug}/pulls/{number}"))
             sha = pr["head"]["sha"]
             if pr["state"] != "open":
@@ -625,7 +642,7 @@ def main():
                                   "review; nothing was posted. Run it again")
             payload = build_review(review, files, display, login, sha, job, why)
             url, error = post_review(slug, number, payload, workdir)
-            if not url and payload["comments"]:
+            if not url and payload["comments"] and "422" in error:
                 # GitHub rejects the whole review when one line does not resolve.
                 payload = build_review(review, files, display, login, sha, job, why,
                                        inline=False)
@@ -634,7 +651,7 @@ def main():
                 raise ReviewError(f"review ran but could not be posted: {error}")
             print(f"\nPosted: {url}")
         return 1 if review["findings"] else 0
-    except (ReviewError, subprocess.TimeoutExpired, KeyError, ValueError) as error:
+    except Exception as error:  # exit 1 is reserved for findings
         print(f"pr-review: {error}", file=sys.stderr)
         return 2
     finally:

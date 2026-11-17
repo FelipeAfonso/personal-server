@@ -30,7 +30,7 @@ disclose the uncertainty if it affects the decision.
 PR review is the one automatic route. The `pr-review` skill chooses its
 reviewer from these readings: a provider with 30% or less of its week left
 moves behind one with more. For review only, this lets Astra take a Product
-review when the Anthropic allowance is low. Other delegation stays a
+review when the Anthropic allowance is low or no Anthropic reviewer finishes. Other delegation stays a
 judgment made with this guidance.
 
 At a task boundary, choose the preferred model or an eligible alternate.

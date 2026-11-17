@@ -41,7 +41,8 @@ Options:
 ## Which model reviews
 
 The script follows the model buckets. Reasoning prefers Astra, then Fable.
-Product prefers Fable, then Opus, then Astra. It reads the weekly allowance
+Product prefers Fable, then Opus. Astra takes a Product review only when the
+Anthropic allowance is low or no Anthropic reviewer finishes. It reads the weekly allowance
 on both subscriptions first. A provider with 30% or less of its week left
 moves behind one with more, and a spent allowance goes last. If the chosen
 model fails, the next candidate runs. The posted review says which model ran
@@ -64,11 +65,15 @@ unrelated work, and say why.
 
 No review bot gates a PR now. With `babysit-pr`, wait on checks alone:
 `pr-wait <pr> --until green`. The `ready` condition waits for a Greptile or
-Macroscope review that will not arrive.
+Macroscope review that will not arrive. `green` skips two checks that
+`ready` made, so make them yourself before reporting the PR ready: the
+latest head has a `pr-review` run, no review thread is unresolved, and the
+branch is not behind its base.
 
 ## Limits
 
-The reviewer is read-only and gets no network tools. PR content can still
+The reviewer reads only the temporary workspace and gets no network tools or
+connected accounts. PR content can still
 carry instructions aimed at a model, so the script refuses PRs from forks
 unless `--allow-fork` is passed. Use that only for an author you trust.
 

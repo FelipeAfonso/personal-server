@@ -115,9 +115,11 @@ def parse_codex_rollout(text, observed_at):
     for line in reversed(text.splitlines()):
         if '"rate_limits"' not in line:
             continue
-        match = re.search(r'"rate_limits":', line)
+        match = re.search(r'"rate_limits"\s*:\s*', line)
+        if not match:
+            continue
         try:
-            limits, _ = json.JSONDecoder().raw_decode(line[match.end():].lstrip())
+            limits, _ = json.JSONDecoder().raw_decode(line[match.end():])
         except ValueError:
             continue
         if not isinstance(limits, dict):
@@ -178,16 +180,27 @@ def codex_models(codex_home):
         return []
 
 
+def codex_on_subscription(codex):
+    """True when Codex is signed in with ChatGPT, not a metered API key."""
+    try:
+        result = subprocess.run([codex, "login", "status"], capture_output=True, text=True,
+                                timeout=30, stdin=subprocess.DEVNULL, env=child_env())
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and "chatgpt" in (result.stdout + result.stderr).lower()
+
+
 def probe_codex(codex_home):
     """Run one small prompt so Codex writes a fresh rate-limit record."""
     codex = find_cli("codex")
     slug = newest_codex_slug(codex_models(codex_home), "terra")
-    if not codex or not slug:
+    if not codex or not slug or not codex_on_subscription(codex):
         return False
     try:
         subprocess.run(
             [codex, "exec", "-m", slug, "-c", 'model_reasoning_effort="low"',
              "-s", "read-only", "--skip-git-repo-check", "--ignore-user-config",
+             "--disable", "apps", "--disable", "plugins",
              "Reply with the single word ok"],
             capture_output=True, text=True, timeout=PROBE_TIMEOUT, cwd=Path.home(),
             stdin=subprocess.DEVNULL, env=child_env(),
@@ -201,7 +214,7 @@ def read_openai(max_age, probe):
     codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
     sessions = codex_home / "sessions"
     reading = newest_codex_reading(sessions)
-    fresh = reading and time.time() - reading["observed_at"] <= max_age
+    fresh = still_valid(reading) and time.time() - reading["observed_at"] <= max_age
     if not fresh and probe and probe_codex(codex_home):
         reading = newest_codex_reading(sessions) or reading
     if reading and not still_valid(reading):

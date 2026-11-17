@@ -131,6 +131,10 @@ class ReadingTheDiff(unittest.TestCase):
     def test_deleted_file_counts_but_takes_no_comments(self):
         self.assertEqual(self.files["old.txt"], {"lines": set(), "changed": 2})
 
+    def test_form_feed_inside_a_line_does_not_split_it(self):
+        files = review.parse_diff("--- a/f.py\n+++ b/f.py\n@@ -1,2 +1,3 @@\n a\n+b\x0cc\n d\n")
+        self.assertEqual(files["f.py"]["lines"], {1, 2, 3})
+
     def test_classify(self):
         self.assertEqual(review.classify(self.files), "reasoning")
         self.assertEqual(review.classify({"a.tsx": {"changed": 9}, "b.py": {"changed": 2}}),
@@ -145,7 +149,6 @@ class PostingTheReview(unittest.TestCase):
             {"path": "repo/src/app.py", "line": 11, "severity": "nit", "title": "A", "body": "a"},
             {"path": "src/app.py", "line": 999, "severity": "major", "title": "B", "body": "b"},
             {"path": "x", "line": "bad", "severity": "weird", "title": "C", "body": "c"},
-            {"path": "x", "line": 1, "severity": "minor", "body": "no title"},
         ]})
 
     def test_clean_review_sorts_and_repairs(self):
@@ -177,7 +180,9 @@ class PostingTheReview(unittest.TestCase):
         self.assertIn("No findings.", payload["body"])
 
     def test_incomplete_output_is_rejected(self):
-        for bad in ({}, {"summary": "", "findings": []}, {"summary": "s"}, "text"):
+        untitled = {"summary": "s", "findings": [
+            {"path": "x", "line": 1, "severity": "major", "body": "no title"}]}
+        for bad in ({}, {"summary": "", "findings": []}, {"summary": "s"}, "text", untitled):
             with self.assertRaises(review.ReviewError):
                 review.clean_review(bad)
 
@@ -204,7 +209,7 @@ class PostingTheReview(unittest.TestCase):
             review.extract_json("nothing here")
 
     def test_resolve_pr_from_url(self):
-        self.assertEqual(review.resolve_pr("https://github.com/o/r/pull/12", None, None),
+        self.assertEqual(review.resolve_pr("https://github.com/o/r/pull/12", None),
                          ("o/r", 12))
 
     def test_json_stream(self):
@@ -257,6 +262,9 @@ class ReadingUsage(unittest.TestCase):
         reading = usage.parse_codex_rollout(text, 50)
         self.assertEqual((reading["weekly_used_percent"], reading["resets_at"]), (17.0, 9))
         self.assertIsNone(usage.parse_codex_rollout(record(short), 50))
+        self.assertIsNone(usage.parse_codex_rollout('{"note": "rate_limits"}', 50))
+        spaced = '{"rate_limits" : ' + json.dumps({"primary": weekly}) + "}"
+        self.assertEqual(usage.parse_codex_rollout(spaced, 50)["weekly_used_percent"], 17.0)
         short_spent = usage.parse_codex_rollout(record(short, weekly, reached="primary"), 50)
         self.assertEqual(short_spent["weekly_used_percent"], 17.0)
 
