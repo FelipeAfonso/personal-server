@@ -34,4 +34,5 @@ Effort follows the bucket, so Opus uses medium for Implementation and xhigh
 for Product. Usage pressure guides selection; task suitability has priority.
 Shared quota pools and stale readings need explicit handling. See
 [models.md](models.md) for selection rules and [delegation.md](delegation.md)
-for client mechanics. The current guidance does not install a routing service.
+for client mechanics. PR review is routed automatically by the `pr-review`
+skill, which reads both weekly allowances; other work is routed by judgment.

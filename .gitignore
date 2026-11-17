@@ -6,3 +6,4 @@ result-*
 .zsh_history
 .zcompdump*
 *.zwc
+__pycache__/

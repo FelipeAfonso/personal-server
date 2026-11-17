@@ -22,9 +22,9 @@ def main():
     )]
     files.extend(
         path.relative_to(source)
-        for skill in ("skills/tstack", "skills/nyarlathotep")
+        for skill in ("skills/tstack", "skills/nyarlathotep", "skills/pr-review")
         for path in sorted((source / skill).rglob("*"))
-        if path.is_file()
+        if path.is_file() and "__pycache__" not in path.parts
     )
     files.extend(
         path.relative_to(source)

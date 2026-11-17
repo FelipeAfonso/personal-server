@@ -37,6 +37,13 @@ Run the repository's required checks and verify the behavior you changed.
 Inspect the final diff and confirm the pushed commit matches the local one.
 Do not invent test results or treat pending CI as passed.
 
+Every PR gets an independent review before you report it ready. After
+opening a PR, and after each push that changes its code, run the `pr-review`
+skill. It picks the reviewer from the model buckets and both subscriptions'
+weekly allowance, then posts its findings on the PR. Fix real findings,
+answer the rest in the thread, and review again after pushing fixes. No
+review bot gates a PR, so wait on checks alone.
+
 # Completion and references
 
 For implementation, report what changed, validation, and the delivery link or
