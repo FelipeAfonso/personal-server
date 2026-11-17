@@ -159,7 +159,7 @@ class PostingTheReview(unittest.TestCase):
         self.assertEqual([(c["path"], c["line"]) for c in payload["comments"]],
                          [("src/app.py", 11)])
         self.assertIn("`src/app.py:999`", payload["body"])
-        self.assertIn("<!-- pr-review:abc1234def -->", payload["body"])
+        self.assertIn("<!-- pr-review:abc1234def findings=3 -->", payload["body"])
         self.assertTrue(payload["body"].startswith(
             "> [!NOTE]\n> 🤖 **GPT-6 Astra responding on behalf of felipe**\n\n"))
         self.assertEqual(payload["event"], "COMMENT")
@@ -171,10 +171,26 @@ class PostingTheReview(unittest.TestCase):
         self.assertIn("`src/app.py:11`", payload["body"])
 
     def test_no_findings(self):
-        empty = review.clean_review({"summary": "", "findings": []})
+        empty = review.clean_review({"summary": "Fine.", "findings": []})
         payload = review.build_review(empty, self.files, "Claude Fable 5.2", "felipe",
                                       "abc1234def", "product", "why")
         self.assertIn("No findings.", payload["body"])
+
+    def test_incomplete_output_is_rejected(self):
+        for bad in ({}, {"summary": "", "findings": []}, {"summary": "s"}, "text"):
+            with self.assertRaises(review.ReviewError):
+                review.clean_review(bad)
+
+    def test_marker_round_trip(self):
+        sha = "a" * 40
+        match = review.MARKER_PATTERN.search(review.MARKER.format(sha=sha, count=4))
+        self.assertEqual((match[1], match[2]), (sha, "4"))
+
+    def test_failed_reviewer_is_the_stated_reason(self):
+        text = review.explain_choice("reasoning", ("fable", "anthropic", "high"),
+                                     readings(28, 20), failed=["astra"])
+        self.assertIn("Fable reviews because Astra did not finish", text)
+        self.assertNotIn("at or below", text)
 
     def test_display_names(self):
         self.assertEqual(review.claude_display("claude-fable-5-2"), "Claude Fable 5.2")
@@ -214,6 +230,22 @@ class ReadingUsage(unittest.TestCase):
         self.assertEqual(usage.parse_claude_stream([json.dumps(event)], 1)
                          ["weekly_used_percent"], 100.0)
 
+    def test_short_window_rejection_leaves_the_week_alone(self):
+        event = {"type": "rate_limit_event", "rate_limit_info": {
+            "status": "rejected", "rateLimitType": "five_hour",
+            "unifiedWindows": {"five_hour": {"utilization": 1.0, "status": "rejected"},
+                               "seven_day": {"utilization": 0.2, "status": "allowed"}}}}
+        self.assertEqual(usage.parse_claude_stream([json.dumps(event)], 1)
+                         ["weekly_used_percent"], 20.0)
+
+    def test_readings_expire(self):
+        reading = {"weekly_used_percent": 100.0, "resets_at": 1000, "observed_at": 900}
+        self.assertTrue(usage.still_valid(reading, now=950))
+        self.assertFalse(usage.still_valid(reading, now=1001))
+        old = {"weekly_used_percent": 10.0, "resets_at": 10**9, "observed_at": 0}
+        self.assertFalse(usage.still_valid(old, now=usage.MAX_READING_AGE + 1))
+        self.assertFalse(usage.still_valid({"weekly_used_percent": None}, now=1))
+
     def test_codex_rollout(self):
         def record(primary, secondary=None, reached=None):
             return json.dumps({"payload": {"info": {}, "rate_limits": {
@@ -225,8 +257,8 @@ class ReadingUsage(unittest.TestCase):
         reading = usage.parse_codex_rollout(text, 50)
         self.assertEqual((reading["weekly_used_percent"], reading["resets_at"]), (17.0, 9))
         self.assertIsNone(usage.parse_codex_rollout(record(short), 50))
-        spent = usage.parse_codex_rollout(record(weekly, reached="primary"), 50)
-        self.assertEqual(spent["weekly_used_percent"], 100.0)
+        short_spent = usage.parse_codex_rollout(record(short, weekly, reached="primary"), 50)
+        self.assertEqual(short_spent["weekly_used_percent"], 17.0)
 
     def test_newest_codex_slug(self):
         models = [{"slug": "gpt-6-astra", "visibility": "list"},

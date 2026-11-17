@@ -22,6 +22,13 @@ import time
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "agent-usage.json"
 WEEK_MINUTES = 7 * 24 * 60
 PROBE_TIMEOUT = 180
+MAX_READING_AGE = 24 * 3600
+API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY")
+
+
+def child_env():
+    """Probes run on the subscriptions, so API keys never reach a child."""
+    return {name: value for name, value in os.environ.items() if name not in API_KEYS}
 
 
 def find_cli(name):
@@ -38,6 +45,17 @@ def find_cli(name):
 
 def unknown(error):
     return {"weekly_used_percent": None, "error": error}
+
+
+def still_valid(reading, now=None):
+    """A reading from before its window reset, or older than a day, says nothing."""
+    now = time.time() if now is None else now
+    if not reading or reading.get("weekly_used_percent") is None:
+        return False
+    reset = reading.get("resets_at")
+    if isinstance(reset, (int, float)) and reset <= now:
+        return False
+    return now - reading.get("observed_at", 0) <= MAX_READING_AGE
 
 
 def parse_claude_stream(lines, now):
@@ -69,7 +87,7 @@ def parse_claude_stream(lines, now):
             "observed_at": int(now),
             "source": f"claude probe ({name})",
         }
-        if window.get("status") == "rejected" or info.get("status") == "rejected":
+        if window.get("status") == "rejected":
             reading["weekly_used_percent"] = max(reading["weekly_used_percent"], 100.0)
     return reading
 
@@ -84,7 +102,7 @@ def probe_claude():
              "--safe-mode", "--tools", "", "--no-session-persistence",
              "--output-format", "stream-json", "--verbose"],
             capture_output=True, text=True, timeout=PROBE_TIMEOUT, cwd=Path.home(),
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL, env=child_env(),
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         return unknown(f"claude probe failed: {error}")
@@ -113,8 +131,6 @@ def parse_codex_rollout(text, observed_at):
             continue
         window = max(windows, key=lambda item: item["used_percent"])
         used = float(window["used_percent"])
-        if limits.get("rate_limit_reached_type"):
-            used = max(used, 100.0)
         return {
             "weekly_used_percent": round(used, 1),
             "resets_at": window.get("resets_at"),
@@ -174,7 +190,7 @@ def probe_codex(codex_home):
              "-s", "read-only", "--skip-git-repo-check", "--ignore-user-config",
              "Reply with the single word ok"],
             capture_output=True, text=True, timeout=PROBE_TIMEOUT, cwd=Path.home(),
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL, env=child_env(),
         )
     except (OSError, subprocess.TimeoutExpired):
         return False
@@ -188,6 +204,8 @@ def read_openai(max_age, probe):
     fresh = reading and time.time() - reading["observed_at"] <= max_age
     if not fresh and probe and probe_codex(codex_home):
         reading = newest_codex_reading(sessions) or reading
+    if reading and not still_valid(reading):
+        return unknown("the last Codex reading is out of date")
     return reading or unknown("no Codex session records a weekly window")
 
 
@@ -197,11 +215,12 @@ def read_anthropic(max_age, probe):
         cached = json.loads(CACHE.read_text()).get("anthropic")
     except (OSError, ValueError, AttributeError):
         pass
-    if cached and cached.get("weekly_used_percent") is not None \
-            and time.time() - cached.get("observed_at", 0) <= max_age:
+    if not still_valid(cached):
+        cached = None
+    if cached and time.time() - cached["observed_at"] <= max_age:
         return cached
     if not probe:
-        return cached or unknown("no cached Claude reading")
+        return cached or unknown("no current Claude reading")
     reading = probe_claude()
     if reading.get("weekly_used_percent") is None:
         return reading
