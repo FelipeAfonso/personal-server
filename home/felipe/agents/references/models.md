@@ -20,11 +20,18 @@ to every model known to use it; switching models does not create allowance.
 Do not infer independent pools from different model names.
 
 Use current provider data when available, or a recent user-supplied reading.
-Keep the source and observation time with any cached figure. Missing, expired,
-or stale data means unknown, not exhausted or unlimited. When usage is
-unknown, follow task suitability and normal preferences, and disclose the
-uncertainty if it affects the decision. These files define guidance; they do
-not install a quota collector or an automatic routing service.
+`~/.agents/skills/pr-review/scripts/agent-usage` reads both weekly windows:
+Anthropic's from a one-word Claude prompt, OpenAI's from Codex's newest
+session record. Keep the source and observation time with any cached figure.
+Missing, expired, or stale data means unknown, not exhausted or unlimited.
+When usage is unknown, follow task suitability and normal preferences, and
+disclose the uncertainty if it affects the decision.
+
+PR review is the one automatic route. The `pr-review` skill chooses its
+reviewer from these readings: a provider with 30% or less of its week left
+moves behind one with more. For review only, this lets Astra take a Product
+review when the Anthropic allowance is low or no Anthropic reviewer finishes. Other delegation stays a
+judgment made with this guidance.
 
 At a task boundary, choose the preferred model or an eligible alternate.
 Keep a healthy ongoing worker on its task. On a confirmed quota failure,

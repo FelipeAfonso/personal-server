@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""Report how much of each provider's weekly subscription allowance is used.
+
+Anthropic: a one-word Claude prompt whose stream carries the weekly window.
+OpenAI: the rate limits Codex records in its newest session rollout, refreshed
+with a small prompt when that record is too old.
+
+Prints JSON: {"anthropic": {...}, "openai": {...}}. A provider that cannot be
+read has "weekly_used_percent": null and an "error". Unknown never means
+exhausted or unlimited.
+"""
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import time
+
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "agent-usage.json"
+WEEK_MINUTES = 7 * 24 * 60
+PROBE_TIMEOUT = 180
+MAX_READING_AGE = 24 * 3600
+API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY")
+
+
+def child_env():
+    """Probes run on the subscriptions, so API keys never reach a child."""
+    return {name: value for name, value in os.environ.items() if name not in API_KEYS}
+
+
+def find_cli(name):
+    """Agent CLIs live outside the system PATH on some machines."""
+    found = shutil.which(name)
+    if found:
+        return found
+    for directory in (".local/bin", ".bun/bin"):
+        candidate = Path.home() / directory / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def unknown(error):
+    return {"weekly_used_percent": None, "error": error}
+
+
+def still_valid(reading, now=None):
+    """A reading from before its window reset, or older than a day, says nothing."""
+    now = time.time() if now is None else now
+    if not reading or reading.get("weekly_used_percent") is None:
+        return False
+    reset = reading.get("resets_at")
+    if isinstance(reset, (int, float)) and reset <= now:
+        return False
+    return now - reading.get("observed_at", 0) <= MAX_READING_AGE
+
+
+def parse_claude_stream(lines, now):
+    """Weekly reading from `claude -p --output-format stream-json` output."""
+    reading = None
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict) or event.get("type") != "rate_limit_event":
+            continue
+        info = event.get("rate_limit_info") or {}
+        windows = {
+            name: window for name, window in (info.get("unifiedWindows") or {}).items()
+            if name.startswith("seven_day") and isinstance(window, dict)
+            and isinstance(window.get("utilization"), (int, float))
+        }
+        if not windows and str(info.get("rateLimitType", "")).startswith("seven_day") \
+                and isinstance(info.get("utilization"), (int, float)):
+            windows = {info["rateLimitType"]: info}
+        if not windows:
+            continue
+        # Several weekly windows can apply; the fullest one is the constraint.
+        name, window = max(windows.items(), key=lambda item: item[1]["utilization"])
+        reading = {
+            "weekly_used_percent": round(window["utilization"] * 100, 1),
+            "resets_at": window.get("resetsAt"),
+            "observed_at": int(now),
+            "source": f"claude probe ({name})",
+        }
+        if window.get("status") == "rejected":
+            reading["weekly_used_percent"] = max(reading["weekly_used_percent"], 100.0)
+    return reading
+
+
+def probe_claude():
+    claude = find_cli("claude")
+    if not claude:
+        return unknown("claude CLI not found")
+    try:
+        result = subprocess.run(
+            [claude, "-p", "Reply with the single word ok", "--model", "haiku",
+             "--safe-mode", "--tools", "", "--no-session-persistence",
+             "--output-format", "stream-json", "--verbose"],
+            capture_output=True, text=True, timeout=PROBE_TIMEOUT, cwd=Path.home(),
+            stdin=subprocess.DEVNULL, env=child_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return unknown(f"claude probe failed: {error}")
+    reading = parse_claude_stream(result.stdout.splitlines(), time.time())
+    return reading or unknown("claude probe reported no weekly window")
+
+
+def parse_codex_rollout(text, observed_at):
+    """Weekly reading from the last rate_limits record in a rollout file."""
+    for line in reversed(text.splitlines()):
+        if '"rate_limits"' not in line:
+            continue
+        match = re.search(r'"rate_limits"\s*:\s*', line)
+        if not match:
+            continue
+        try:
+            limits, _ = json.JSONDecoder().raw_decode(line[match.end():])
+        except ValueError:
+            continue
+        if not isinstance(limits, dict):
+            continue
+        windows = [
+            window for window in (limits.get("primary"), limits.get("secondary"))
+            if isinstance(window, dict) and window.get("window_minutes") == WEEK_MINUTES
+            and isinstance(window.get("used_percent"), (int, float))
+        ]
+        if not windows:
+            continue
+        window = max(windows, key=lambda item: item["used_percent"])
+        used = float(window["used_percent"])
+        return {
+            "weekly_used_percent": round(used, 1),
+            "resets_at": window.get("resets_at"),
+            "observed_at": int(observed_at),
+            "source": "codex session record",
+        }
+    return None
+
+
+def newest_codex_reading(sessions, limit=8):
+    """Newest rollout that carries a weekly window, looking at recent files only."""
+    if not sessions.is_dir():
+        return None
+    rollouts = sorted(sessions.glob("*/*/*/rollout-*.jsonl"),
+                      key=lambda path: path.stat().st_mtime, reverse=True)
+    for path in rollouts[:limit]:
+        try:
+            with path.open("rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                handle.seek(max(0, handle.tell() - 512 * 1024))
+                tail = handle.read().decode("utf-8", "replace")
+        except OSError:
+            continue
+        reading = parse_codex_rollout(tail, path.stat().st_mtime)
+        if reading:
+            return reading
+    return None
+
+
+def newest_codex_slug(models, family):
+    """Highest listed version of a model class, e.g. gpt-6.1-terra."""
+    pattern = re.compile(rf"gpt-(\d+(?:\.\d+)*)-{re.escape(family)}")
+    candidates = []
+    for model in models:
+        match = pattern.fullmatch(model.get("slug", ""))
+        if match and model.get("visibility") == "list" and not model.get("upgrade"):
+            candidates.append((tuple(int(part) for part in match[1].split(".")), model["slug"]))
+    return max(candidates)[1] if candidates else None
+
+
+def codex_models(codex_home):
+    try:
+        return json.loads((codex_home / "models_cache.json").read_text())["models"]
+    except (OSError, ValueError, KeyError):
+        return []
+
+
+def codex_on_subscription(codex):
+    """True when Codex is signed in with ChatGPT, not a metered API key."""
+    try:
+        result = subprocess.run([codex, "login", "status"], capture_output=True, text=True,
+                                timeout=30, stdin=subprocess.DEVNULL, env=child_env())
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and "chatgpt" in (result.stdout + result.stderr).lower()
+
+
+def probe_codex(codex_home):
+    """Run one small prompt so Codex writes a fresh rate-limit record."""
+    codex = find_cli("codex")
+    slug = newest_codex_slug(codex_models(codex_home), "terra")
+    if not codex or not slug or not codex_on_subscription(codex):
+        return False
+    try:
+        subprocess.run(
+            [codex, "exec", "-m", slug, "-c", 'model_reasoning_effort="low"',
+             "-s", "read-only", "--skip-git-repo-check", "--ignore-user-config",
+             "--disable", "apps", "--disable", "plugins",
+             "Reply with the single word ok"],
+            capture_output=True, text=True, timeout=PROBE_TIMEOUT, cwd=Path.home(),
+            stdin=subprocess.DEVNULL, env=child_env(),
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return True
+
+
+def read_openai(max_age, probe):
+    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    sessions = codex_home / "sessions"
+    reading = newest_codex_reading(sessions)
+    fresh = still_valid(reading) and time.time() - reading["observed_at"] <= max_age
+    if not fresh and probe and probe_codex(codex_home):
+        reading = newest_codex_reading(sessions) or reading
+    if reading and not still_valid(reading):
+        return unknown("the last Codex reading is out of date")
+    return reading or unknown("no Codex session records a weekly window")
+
+
+def read_anthropic(max_age, probe):
+    cached = None
+    try:
+        cached = json.loads(CACHE.read_text()).get("anthropic")
+    except (OSError, ValueError, AttributeError):
+        pass
+    if not still_valid(cached):
+        cached = None
+    if cached and time.time() - cached["observed_at"] <= max_age:
+        return cached
+    if not probe:
+        return cached or unknown("no current Claude reading")
+    reading = probe_claude()
+    if reading.get("weekly_used_percent") is None:
+        return reading
+    try:
+        CACHE.parent.mkdir(parents=True, exist_ok=True)
+        CACHE.write_text(json.dumps({"anthropic": reading}))
+    except OSError:
+        pass
+    return reading
+
+
+def read_usage(max_age=3600, probe=True):
+    return {"anthropic": read_anthropic(max_age, probe), "openai": read_openai(max_age, probe)}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--max-age", type=int, default=3600,
+                        help="seconds a reading stays fresh (default 3600)")
+    parser.add_argument("--no-probe", action="store_true",
+                        help="report recorded readings only; never run a model")
+    args = parser.parse_args()
+    print(json.dumps(read_usage(args.max_age, not args.no_probe), indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

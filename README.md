@@ -22,7 +22,7 @@ modules/
   secrets.nix                 sops-nix wiring (dormant until secrets repo exists)
   backups.nix                 Turso dumps (4h, df-dd-api daily) -> ~/backups/turso/<db>, 7-day retention
 home/felipe/                  home-manager: zsh, tmux, nvim, starship, lazygit, opencode, bin scripts
-  agents/                     global prompts for claude/codex/opencode, shared model table (models.md), vendored skills (unslop, plan-html-workflow, tstack, nyarlathotep)
+  agents/                     global prompts for claude/codex/opencode, shared model table (models.md), vendored skills (unslop, plan-html-workflow, tstack, nyarlathotep, pr-review)
 ```
 
 ## Design decisions (short version)
@@ -127,13 +127,19 @@ The check exits with status 1 if a shared file differs or is missing. To copy
 updates, switch the target repo to a task branch and add `--write`. The script
 refuses to overwrite uncommitted changes in the target files. It also syncs
 the planning skill's instructions, all nine vendored tstack skills, the
-nyarlathotep skill, and shared references. Machine notes and `references/rlyeh.md` stay in their own repo.
+nyarlathotep and pr-review skills, and shared references. Machine notes and `references/rlyeh.md` stay in their own repo.
 Commit and review the changes in both repos before deployment.
 
 Keep the always-loaded files short. Procedures live in `agents/references/`
 and install under `~/.agents/references/`; the global instructions say when
 to read each file. Shared references sync to the desktop, while each machine
 owns its own operations reference. Check the links as part of deployment.
+Every PR is reviewed by the [pr-review skill](home/felipe/agents/skills/pr-review/SKILL.md)
+instead of a paid review bot. Its script picks a reviewer from the model
+buckets and the weekly allowance left on the Claude and Codex subscriptions,
+then posts the findings on the PR. Test it with
+`python3 home/felipe/agents/skills/pr-review/scripts/test_pr_review.py`.
+
 The [model catalog brief](home/felipe/agents/references/model-usage.md) explains
 expected usage under the current routing policy, without claiming measured
 usage or vendor capabilities.

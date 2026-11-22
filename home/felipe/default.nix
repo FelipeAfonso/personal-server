@@ -162,6 +162,15 @@ in
       source = ./agents/skills/nyarlathotep;
       recursive = false;
     };
+    # The PR review step: reviewer script, usage reader, and their tests.
+    ".claude/skills/pr-review" = {
+      source = ./agents/skills/pr-review;
+      recursive = false;
+    };
+    ".agents/skills/pr-review" = {
+      source = ./agents/skills/pr-review;
+      recursive = false;
+    };
     # Hook scripts referenced by ~/.claude/settings.json. That file stays
     # mutable (Claude Code writes to it at runtime, e.g. /config), so the
     # hooks block in it is set by hand; only the scripts are flake-managed.

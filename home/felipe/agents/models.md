@@ -29,7 +29,9 @@ reviewer from the builder. Match review effort to the consequences of the
 change. Do not launch both models merely because a bucket has two entries.
 
 Choose quality over speed. Use the configured catalog; GPT for Product still
-requires Felipe's request. Before delegation, read
+requires Felipe's request, except that `pr-review` may give a Product review
+to Astra when the Anthropic weekly allowance is low or no Anthropic reviewer
+finishes. Before delegation, read
 `~/.agents/references/delegation.md`. Read `models.md` in that directory when
 usage pressure affects selection or when revising the catalog. Luna has no
 active bucket and is not an automatic fallback.

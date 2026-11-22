@@ -25,7 +25,9 @@ criteria and return unresolved decisions to Reasoning. Use Reasoning for
 substantive technical review and Product for user-facing review. Review is a
 role within a bucket; it does not require every available model to participate.
 
-Check recent usage when it could affect model selection. The Astra threshold
+Check recent usage when it could affect model selection:
+`~/.agents/skills/pr-review/scripts/agent-usage` prints the weekly allowance
+used on both subscriptions. The Astra threshold
 is 30% weekly allowance remaining, not 30% used. It is advisory: task-specific
 superiority overrides quota conservation, subject to explicit user limits.
 Read `~/.agents/references/models.md` for shared pools, stale readings, and
