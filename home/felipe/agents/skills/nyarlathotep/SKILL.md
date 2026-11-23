@@ -32,7 +32,7 @@ HEY_NONINTERACTIVE=1 /home/felipe/bin/hey box list --json
 From any other host:
 
 ```sh
-ssh -T -o BatchMode=yes miskatonic \
+ssh -T -o BatchMode=yes felipe@miskatonic \
   'HEY_NONINTERACTIVE=1 /home/felipe/bin/hey box list --json'
 ```
 

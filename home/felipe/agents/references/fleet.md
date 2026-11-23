@@ -14,9 +14,9 @@ Each full name is `<host>.bass-pirarucu.ts.net`. SSH as the user in the
 table, using the loaded keys. Yuggoth's account differs from the others, so
 name the user whenever yuggoth is either end: `ssh felipeafonso@yuggoth` from
 rlyeh or miskatonic, `ssh felipe@miskatonic` from yuggoth. A bare `ssh <host>`
-sends the local username and fails there. Read-only inspection is allowed. Editing, installation, and
-restarts on another machine must be included in the user's task. Report what
-you changed there. Do not make rlyeh depend on another machine being online.
+sends the local username, and the other end denies it. Read-only inspection
+is allowed. Editing, installation, and restarts on another machine must be
+included in the user's task. Report what you changed there. Do not make rlyeh depend on another machine being online.
 
 Keep long-running or scheduled work on rlyeh. Read `previews.md` in this
 directory before starting processes. When a file needs to reach Felipe's
@@ -26,7 +26,7 @@ Rlyeh's source is `~/code/personal/personal-server` on rlyeh. Read that repo's
 instructions before changing it. After an authorized merge and deployment:
 
 ```sh
-ssh rlyeh 'sudo nixos-rebuild switch --flake ~/code/personal/personal-server#rlyeh'
+ssh felipe@rlyeh 'sudo nixos-rebuild switch --flake ~/code/personal/personal-server#rlyeh'
 ```
 
 The desktop's source is `~/code/personal/personal-desktop` on miskatonic.
