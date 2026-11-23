@@ -3,15 +3,18 @@
 Read this for remote-machine work or network administration. Tailnet hosts
 resolve through MagicDNS. Prefer names over hardcoded addresses.
 
-| Host | Purpose | Tailscale IP | OS |
-| --- | --- | --- | --- |
-| rlyeh | Always-on agent server | 100.91.212.25 | NixOS |
-| miskatonic | Felipe's desktop | 100.91.60.55 | CachyOS |
-| yuggoth | Intermittently online laptop | 100.120.128.70 | macOS |
-| necronomicon | iPhone | 100.114.0.102 | iOS |
+| Host | Purpose | Tailscale IP | OS | SSH user |
+| --- | --- | --- | --- | --- |
+| rlyeh | Always-on agent server | 100.91.212.25 | NixOS | `felipe` |
+| miskatonic | Felipe's desktop | 100.91.60.55 | CachyOS | `felipe` |
+| yuggoth | Intermittently online laptop | 100.120.128.70 | macOS | `felipeafonso` |
+| necronomicon | iPhone | 100.114.0.102 | iOS | none |
 
-Each full name is `<host>.bass-pirarucu.ts.net`. SSH as `felipe` using the
-loaded keys. Read-only inspection is allowed. Editing, installation, and
+Each full name is `<host>.bass-pirarucu.ts.net`. SSH as the user in the
+table, using the loaded keys. Yuggoth's account differs from the others, so
+name the user whenever yuggoth is either end: `ssh felipeafonso@yuggoth` from
+rlyeh or miskatonic, `ssh felipe@miskatonic` from yuggoth. A bare `ssh <host>`
+sends the local username and fails there. Read-only inspection is allowed. Editing, installation, and
 restarts on another machine must be included in the user's task. Report what
 you changed there. Do not make rlyeh depend on another machine being online.
 
