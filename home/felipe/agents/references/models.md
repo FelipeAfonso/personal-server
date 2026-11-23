@@ -2,8 +2,8 @@
 
 The four buckets in the global instructions are the current routing policy.
 Fable holds Reasoning and Product. Neon holds Implementation and Routine.
-Use the model and effort for the task's bucket. Explicit user restrictions
-still apply.
+Use the model and effort for the task's bucket. Fable runs at high or
+medium, never xhigh or above. Explicit user restrictions still apply.
 
 ## Weekly allowance
 

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True  # keep the skill directory free of __pycache__
@@ -177,6 +178,49 @@ class PostingTheReview(unittest.TestCase):
         for bad in ({}, {"summary": "", "findings": []}, {"summary": "s"}, "text", untitled):
             with self.assertRaises(review.ReviewError):
                 review.clean_review(bad)
+
+    def test_follow_up_keeps_only_blocker_and_major(self):
+        raw = {"summary": "s", "findings": [
+            {"path": "a", "line": 1, "severity": severity, "title": severity, "body": "b"}
+            for severity in ("nit", "major", "minor", "blocker")]}
+        kept = review.clean_review(raw, review.FOLLOW_UP_SEVERITIES)["findings"]
+        self.assertEqual([item["severity"] for item in kept], ["blocker", "major"])
+        payload = review.build_review({"summary": "s", "findings": kept}, self.files,
+                                      "Claude Fable 5.2", "felipe", "abc1234def",
+                                      "reasoning", "why", follow_up=True)
+        self.assertIn("follow-up review (blocker and major findings only)", payload["body"])
+        self.assertIn("{round_rule}", review.PROMPT)
+
+    def test_reviewed_heads_counts_this_users_marked_reviews(self):
+        def item(sha, count, user="felipe", commit=None):
+            return {"body": review.MARKER.format(sha=sha, count=count),
+                    "commit_id": commit or sha, "user": user}
+        one, two, three = "a" * 40, "b" * 40, "c" * 40
+        heads = review.reviewed_heads(
+            [item(one, 3), item(one, 1), item(two, 0, user="someone"),
+             item(three, 2, commit=one), {"body": "plain comment", "commit_id": two,
+                                          "user": "felipe"}], "felipe")
+        self.assertEqual(heads, {one: 1})
+        self.assertEqual(review.MAX_ROUNDS, 2)
+
+    def test_fable_never_runs_above_high(self):
+        class Usage:
+            find_cli = staticmethod(lambda name: "/bin/true")
+        for effort in ("xhigh", "max"):
+            with self.assertRaisesRegex(review.ReviewError, "medium or high"):
+                review.run_claude(Usage, "fable", effort, "prompt", None)
+        self.assertEqual(review.CANDIDATES[0], ("fable", "anthropic", "high"))
+
+    def test_effort_override_applies_to_fable_only(self):
+        seen = []
+        def runner(usage_module, model, effort, prompt, workdir):
+            seen.append((model, effort))
+            raise review.ReviewError("stop")
+        with mock.patch.object(review, "run_claude", runner), \
+                mock.patch.object(review, "run_agy", runner), \
+                self.assertRaises(review.ReviewError):
+            review.review_with(review.CANDIDATES, None, "p", None, "medium")
+        self.assertEqual(seen, [("fable", "medium"), ("neon", "xhigh")])
 
     def test_marker_round_trip(self):
         sha = "a" * 40

@@ -12,6 +12,10 @@ for: Reasoning for code, Product for changes that are mostly UI. The reviewer
 reads the PR head in a temporary worktree, read-only, and its findings are
 posted as one GitHub review with inline comments.
 
+A PR gets at most two reviews: a full one, then one follow-up after fixes that
+reports only blocker and major findings. Later heads are not reviewed unless
+--force is passed. Fable runs at medium or high effort, never above.
+
 Exit status: 0 no findings, 1 findings to handle, 2 the review did not run.
 """
 
@@ -32,6 +36,9 @@ sys.dont_write_bytecode = True  # keep the skill directory free of __pycache__
 THRESHOLD = 30.0  # percent of the weekly allowance remaining
 REVIEW_TIMEOUT = 45 * 60
 MAX_FINDINGS = 15
+MAX_ROUNDS = 2  # reviewed heads per PR: the full review and one follow-up
+FOLLOW_UP_SEVERITIES = ("blocker", "major")
+FABLE_EFFORTS = ("medium", "high")  # Fable never runs above high
 MARKER = "<!-- pr-review:{sha} findings={count} -->"
 MARKER_PATTERN = re.compile(r"<!-- pr-review:([0-9a-f]{40}) findings=(\d+) -->")
 API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GEMINI_API_KEY", "GOOGLE_API_KEY")
@@ -104,7 +111,7 @@ How to review:
 - Do not repeat a point from `prior-comments.md` that the author answered with a
   sound reason or fixed. Raise it again only if the fix is wrong.
 - Report at most {max_findings} findings, most severe first. None is a valid result.
-
+{round_rule}
 Severity: `blocker` breaks production, loses data, or opens a security hole.
 `major` is a real bug or regression in a likely case. `minor` is a real problem
 in an unlikely case or a missing test for changed behavior. `nit` is optional.
@@ -124,6 +131,12 @@ FOCUS = {
                "unclear copy, inconsistent API or component design, and missing states "
                "(loading, empty, error), as well as plain correctness bugs.",
 }
+
+
+FOLLOW_UP_RULE = """- This is the follow-up review of a PR that was already reviewed. Report only
+  `blocker` and `major` findings: defects the fixes introduced, or serious ones
+  the earlier review missed. Leave out `minor` and `nit` findings.
+"""
 
 
 class ReviewError(Exception):
@@ -315,6 +328,9 @@ def run_claude(usage_module, model, effort, prompt, workdir):
     claude = usage_module.find_cli("claude")
     if not claude:
         raise ReviewError("claude CLI not found")
+    if effort not in FABLE_EFFORTS:
+        raise ReviewError(f"{model.capitalize()} runs at {' or '.join(FABLE_EFFORTS)} "
+                          f"effort, not {effort}")
     # --restricted confines the file tools to the workspace; --safe-mode keeps
     # the user's hooks and global instructions out of the review. The tool list
     # is read-only, so no permission mode is needed.
@@ -381,7 +397,7 @@ def agy_review(stdout, stderr, returncode):
     return review
 
 
-def clean_review(review):
+def clean_review(review, severities=SEVERITIES):
     if not isinstance(review, dict) or not isinstance(review.get("summary"), str) \
             or not review["summary"].strip() or not isinstance(review.get("findings"), list):
         raise ReviewError("reviewer output is missing its summary or findings")
@@ -392,6 +408,8 @@ def clean_review(review):
                 or not str(item.get("body") or "").strip():
             raise ReviewError("reviewer returned a finding without a title or body")
         severity = item.get("severity") if item.get("severity") in SEVERITIES else "minor"
+        if severity not in severities:
+            continue  # a follow-up review keeps only what blocks the merge
         try:
             line = int(item.get("line") or 0)
         except (TypeError, ValueError):
@@ -405,17 +423,18 @@ def clean_review(review):
             "findings": findings[:MAX_FINDINGS]}
 
 
-def review_with(candidates, usage_module, prompt, workdir, effort=None):
+def review_with(candidates, usage_module, prompt, workdir, effort=None,
+                severities=SEVERITIES):
     errors = []
     for candidate in candidates:
         model, provider, bucket_effort = candidate
         runner = run_claude if provider == "anthropic" else run_agy
-        print(f"Reviewing with {model.capitalize()} at {effort or bucket_effort} effort...",
-              file=sys.stderr)
+        # --effort picks between Fable's two levels; the Neon fallback keeps its own.
+        level = effort if effort and provider == "anthropic" else bucket_effort
+        print(f"Reviewing with {model.capitalize()} at {level} effort...", file=sys.stderr)
         try:
-            review, display = runner(usage_module, model, effort or bucket_effort,
-                                     prompt, workdir)
-            return candidate, display, clean_review(review), errors
+            review, display = runner(usage_module, model, level, prompt, workdir)
+            return candidate, display, clean_review(review, severities), errors
         except Exception as error:  # any runner failure hands over to the next model
             errors.append(f"{model}: {error}")
             print(f"  {model} did not finish: {error}", file=sys.stderr)
@@ -432,7 +451,8 @@ def finding_text(finding):
     return f"**{finding['severity']}: {finding['title']}**\n\n{finding['body']}"
 
 
-def build_review(review, files, display, login, sha, job, why, inline=True):
+def build_review(review, files, display, login, sha, job, why, inline=True,
+                 follow_up=False):
     comments, loose = [], []
     for finding in review["findings"]:
         valid = finding["line"] in files.get(finding["path"], {}).get("lines", ())
@@ -449,7 +469,8 @@ def build_review(review, files, display, login, sha, job, why, inline=True):
     for finding in loose:
         where = f"`{finding['path']}:{finding['line']}`" if finding["path"] else "General"
         body += f"\n{where}\n\n{finding_text(finding)}\n"
-    body += f"\n{job.capitalize()} review of {sha[:7]}. {why}.\n" \
+    kind = "follow-up review (blocker and major findings only)" if follow_up else "review"
+    body += f"\n{job.capitalize()} {kind} of {sha[:7]}. {why}.\n" \
             f"{MARKER.format(sha=sha, count=count)}\n"
     return {"commit_id": sha, "event": "COMMENT", "body": body, "comments": comments}
 
@@ -508,16 +529,20 @@ def prior_comments(slug, number):
     return "\n".join(lines)
 
 
-def earlier_findings(slug, number, sha, login):
-    """Finding count of this user's review of this head, or None if there is none."""
+def earlier_reviews(slug, number, login):
+    """Finding count of this user's latest review of each head it reviewed."""
     raw = gh_api(f"repos/{slug}/pulls/{number}/reviews", "--paginate", "--jq",
                  ".[] | {body, commit_id, user: .user.login}")
-    count = None
-    for item in json_stream(raw):
+    return reviewed_heads(json_stream(raw), login)
+
+
+def reviewed_heads(reviews, login):
+    heads = {}
+    for item in reviews:
         match = MARKER_PATTERN.search(item.get("body") or "")
-        if match and match[1] == sha == item.get("commit_id") and item.get("user") == login:
-            count = int(match[2])
-    return count
+        if match and match[1] == item.get("commit_id") and item.get("user") == login:
+            heads[match[1]] = int(match[2])
+    return heads
 
 
 def base_instructions(root, base, target):
@@ -557,13 +582,15 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("pr", nargs="?", help="PR number or URL (default: current branch's PR)")
     parser.add_argument("--job", choices=("auto", "reasoning", "product"), default="auto")
-    parser.add_argument("--effort", help="override the bucket's reasoning effort")
+    parser.add_argument("--effort", choices=FABLE_EFFORTS,
+                        help="Fable's reasoning effort (default: high)")
     parser.add_argument("--local", action="store_true",
                         help="review HEAD against --base and print; no PR needed")
     parser.add_argument("--base", help="base ref for --local (default: origin's default)")
     parser.add_argument("--dry-run", action="store_true", help="print instead of posting")
     parser.add_argument("--force", action="store_true",
-                        help="review even if this head was already reviewed")
+                        help="review even if this head was already reviewed, "
+                             "or the PR already had its two reviews")
     parser.add_argument("--allow-fork", action="store_true",
                         help="review a PR from another repository (untrusted content)")
     args = parser.parse_args()
@@ -586,6 +613,7 @@ def main():
             context = f"This is local branch work at {sha[:7]}, not yet a pull request.\n" \
                       f"Commits:\n{git('log', '--format=- %s', f'{base}..{sha}', cwd=root)}"
             comments = ""
+            follow_up = False
         else:
             slug, number = resolve_pr(args.pr, root)
             if repo_slug(root).lower() != slug.lower():
@@ -599,12 +627,18 @@ def main():
                 raise ReviewError("PR comes from a fork; its content is untrusted. "
                                   "Pass --allow-fork to review it anyway")
             login = json.loads(gh_api("user"))["login"]
-            earlier = None if args.force or args.dry_run else \
-                earlier_findings(slug, number, sha, login)
-            if earlier is not None:
+            heads = earlier_reviews(slug, number, login)
+            earlier = heads.get(sha)
+            if earlier is not None and not (args.force or args.dry_run):
                 print(f"PR #{number} head {sha[:7]} was already reviewed with {earlier} "
                       f"finding{'s' if earlier != 1 else ''}; pass --force to review again.")
                 return 1 if earlier else 0
+            if len(heads) >= MAX_ROUNDS and not (args.force or args.dry_run):
+                print(f"PR #{number} already had its {MAX_ROUNDS} reviews, so head {sha[:7]} "
+                      "is not reviewed. Check your own fixes and move on; pass --force "
+                      "only if a fix was risky enough to need another look.")
+                return 0
+            follow_up = bool(set(heads) - {sha})
             git("fetch", "--quiet", "origin", f"refs/pull/{number}/head", cwd=root)
             git("fetch", "--quiet", "origin", pr["base"]["ref"], cwd=root)
             base = git("merge-base", git("rev-parse", "FETCH_HEAD", cwd=root), sha, cwd=root)
@@ -624,9 +658,11 @@ def main():
         usage = usage_module.read_usage()
         candidates = order_candidates(usage)
         prompt = PROMPT.format(context=context, focus=FOCUS[job], max_findings=MAX_FINDINGS,
+                               round_rule=FOLLOW_UP_RULE if follow_up else "",
                                schema=json.dumps(SCHEMA, indent=2))
+        severities = FOLLOW_UP_SEVERITIES if follow_up else SEVERITIES
         chosen, display, review, errors = review_with(candidates, usage_module, prompt,
-                                                      workdir, args.effort)
+                                                      workdir, args.effort, severities)
         why = explain_choice(chosen, usage,
                              failed=[error.split(":")[0] for error in errors])
 
@@ -636,12 +672,13 @@ def main():
             if current != sha:
                 raise ReviewError(f"the PR moved from {sha[:7]} to {current[:7]} during the "
                                   "review; nothing was posted. Run it again")
-            payload = build_review(review, files, display, login, sha, job, why)
+            payload = build_review(review, files, display, login, sha, job, why,
+                                   follow_up=follow_up)
             url, error = post_review(slug, number, payload, workdir)
             if not url and payload["comments"] and "422" in error:
                 # GitHub rejects the whole review when one line does not resolve.
                 payload = build_review(review, files, display, login, sha, job, why,
-                                       inline=False)
+                                       inline=False, follow_up=follow_up)
                 url, error = post_review(slug, number, payload, workdir)
             if not url:
                 raise ReviewError(f"review ran but could not be posted: {error}")

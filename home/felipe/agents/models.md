@@ -22,9 +22,12 @@ instructions and acceptance criteria. Return unresolved decisions to
 Reasoning. Thin orchestration wrappers may use Neon at low effort. When Neon
 does poorly on a clear brief, move the task to Fable instead of retrying.
 
+Fable runs at high or medium effort, never xhigh or above, whatever the
+task or client.
+
 Reviews use Reasoning or Product as appropriate, so Fable reviews, in a fresh
 session when it also built the change. Match review effort to the consequences
-of the change. `pr-review` may hand a review to Neon at xhigh effort when 30%
+of the change, within that limit. `pr-review` may hand a review to Neon at xhigh effort when 30%
 or less of the Anthropic weekly allowance remains, or when Fable does not
 finish. That is the only automatic route from a Fable bucket to Neon.
 

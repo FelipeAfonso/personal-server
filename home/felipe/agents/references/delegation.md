@@ -16,8 +16,9 @@ Use separate worktrees for concurrent writers. Read-only workers can share a
 checkout. Don't create thin wrapper agents when a direct CLI call suffices.
 Select a bucket and set its model and effort explicitly. Use the current
 bucket table in the global instructions; do not infer effort from the model's
-name or apply a blanket setting. Fable uses high. Neon uses high for
-Implementation and medium for Routine. Neon wrappers may use low.
+name or apply a blanket setting. Fable uses high, or medium for light work,
+and never xhigh or above. Neon uses high for Implementation and medium for
+Routine. Neon wrappers may use low.
 
 Neon workers only implement settled instructions. Give them acceptance
 criteria and return unresolved decisions to Reasoning. Use Reasoning for
