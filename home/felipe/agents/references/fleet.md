@@ -16,7 +16,8 @@ name the user whenever yuggoth is either end: `ssh felipeafonso@yuggoth` from
 rlyeh or miskatonic, `ssh felipe@miskatonic` from yuggoth. A bare `ssh <host>`
 sends the local username, and the other end denies it. Read-only inspection
 is allowed. Editing, installation, and restarts on another machine must be
-included in the user's task. Report what you changed there. Do not make rlyeh depend on another machine being online.
+included in the user's task. Report what you changed there. Do not make rlyeh
+depend on another machine being online.
 
 Keep long-running or scheduled work on rlyeh. Read `previews.md` in this
 directory before starting processes. When a file needs to reach Felipe's
