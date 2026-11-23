@@ -361,19 +361,24 @@ def run_agy(usage_module, model, effort, prompt, workdir):
          "-p=Read prompt.md in the current directory and follow it exactly."],
         # An empty stdin: agy must not wait on, or read, the caller's own.
         cwd=workdir, stdin="", timeout=REVIEW_TIMEOUT + 60, check=False)
+    return agy_review(result.stdout, result.stderr, result.returncode), display
+
+
+def agy_review(stdout, stderr, returncode):
+    """The review from agy's JSON envelope; raises unless the run succeeded."""
     try:
-        output = json.loads(result.stdout)
+        output = json.loads(stdout)
         if not isinstance(output, dict):
             raise ValueError
     except ValueError:
-        raise ReviewError(f"agy gave no result: {(result.stderr or result.stdout).strip()[-400:]}")
-    if result.returncode or output.get("status") != "SUCCESS":
-        detail = output.get("error") or output.get("status") or result.stderr
+        raise ReviewError(f"agy gave no result: {(stderr or stdout).strip()[-400:]}")
+    if returncode or output.get("status") != "SUCCESS":
+        detail = output.get("error") or output.get("status") or stderr
         raise ReviewError(f"agy failed: {str(detail).strip()[-400:]}")
     review = output.get("structured_output")
     if not isinstance(review, dict):
         review = extract_json(str(output.get("response", "")))
-    return review, display
+    return review
 
 
 def clean_review(review):

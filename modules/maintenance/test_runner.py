@@ -3,6 +3,8 @@ import datetime as dt
 import importlib.util
 import json
 import pathlib
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -36,6 +38,8 @@ class PolicyTests(unittest.TestCase):
         for rule in ("command(*)", "read_url(*)", "execute_url(*)", "mcp(*)"):
             self.assertIn(rule, settings["permissions"]["deny"])
         self.assertIn("write_file(.git/)", settings["permissions"]["deny"])
+        self.assertFalse(settings["allowNonWorkspaceAccess"])
+        self.assertNotIn("write_file(*)", settings["permissions"].get("allow", []))
         self.assertFalse(settings["useG1Credits"])
         self.assertEqual(settings["modelProvider"], "")
         self.assertNotIn("--dangerously-skip-permissions", repair)
@@ -62,6 +66,40 @@ class PolicyTests(unittest.TestCase):
             self.assertIn("-/nix/var/nix/daemon-socket", hidden)
             self.assertEqual(properties["ProtectHome"], "read-only")
             self.assertEqual(properties["NoNewPrivileges"], "yes")
+
+    def test_confinement_script_reports_writable_git_and_reachable_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = pathlib.Path(directory) / "checkout"
+            (checkout / ".git" / "hooks").mkdir(parents=True)
+            (checkout / ".git" / "config").write_text("")
+            reachable = pathlib.Path(directory) / "socket"
+            reachable.write_text("")
+            missing = str(pathlib.Path(directory) / "absent")
+
+            def check(writable, *protected):
+                result = subprocess.run([sys.executable, "-c", runner.CONFINEMENT_CHECK,
+                                         writable, str(checkout), *protected],
+                                        capture_output=True, text=True)
+                return result.returncode, result.stdout
+
+            code, output = check("yes", str(reachable))
+            self.assertEqual(code, 1)
+            self.assertIn("writable Git metadata", output)
+            self.assertIn(f"accessible: {reachable}", output)
+            self.assertNotIn("checkout write access", output)
+            self.assertIn("checkout write access is wrong", check("no", missing)[1])
+            for path in [*(checkout / ".git").rglob("*"), checkout / ".git"]:
+                path.chmod(0o555 if path.is_dir() else 0o444)
+            try:
+                code, output = check("yes", missing)
+                self.assertNotIn("writable Git metadata", output)
+                self.assertNotIn("accessible", output)
+                # NoNewPrivs depends on where the tests run, so it is not asserted.
+                self.assertIn(output.strip(), ("", "NoNewPrivs is not 1"))
+                self.assertEqual(code, 1 if output.strip() else 0)
+            finally:
+                for path in [checkout / ".git", *(checkout / ".git").rglob("*")]:
+                    path.chmod(0o755)
 
     def test_agent_envelope_must_report_success(self):
         self.assertEqual(runner.agent_result("repair", '{"status": "SUCCESS", "response": "ok"}'), "ok")

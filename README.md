@@ -149,17 +149,18 @@ usage or vendor capabilities.
 Rlyeh installs these files through Home Manager during `nixos-rebuild switch`.
 On miskatonic, `./export_current --agents-only` installs the agent files
 without exporting unrelated desktop configs. After deploying, compare all
-three installed files with the concatenated sources. Existing conversations
+three installed files (`~/.claude/CLAUDE.md`, `~/.gemini/config/AGENTS.md`,
+`~/.config/opencode/AGENTS.md`) with the concatenated sources. Existing conversations
 may still contain earlier instructions; start a fresh session for the new
 policy.
 
 The [tstack skills](home/felipe/agents/skills/tstack/README.md) install into
-both Claude's and the shared agent skills directories. Their upstream
+Claude's, Antigravity's, and the shared agent skills directories. Their upstream
 revision and MIT license are vendored alongside the skills.
 
 The [nyarlathotep skill](home/felipe/agents/skills/nyarlathotep/SKILL.md) is
 the HEY email desk from the nyarlathotep repository, usable from any
-directory. It installs into the same two skills directories. It runs `hey`
+directory. It installs into the same three skills directories. It runs `hey`
 directly on miskatonic and over SSH everywhere else.
 
 ## Weekend maintenance

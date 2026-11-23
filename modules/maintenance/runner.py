@@ -32,7 +32,7 @@ PROTECTED_UNITS = re.compile(
 # stops the run instead of drawing on paid AI credits or a metered API key.
 AGY_SETTINGS = {
     "agentMode": "accept-edits", "toolPermission": "request-review",
-    "useG1Credits": False, "modelProvider": "",
+    "allowNonWorkspaceAccess": False, "useG1Credits": False, "modelProvider": "",
     "permissions": {"allow": ["read_file(*)"],
                     "deny": ["command(*)", "read_url(*)", "execute_url(*)", "mcp(*)",
                              "write_file(.git/)"]},

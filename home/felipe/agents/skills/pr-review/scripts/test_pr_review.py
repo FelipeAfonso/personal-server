@@ -193,6 +193,19 @@ class PostingTheReview(unittest.TestCase):
         self.assertEqual(review.claude_display("claude-fable-5-2"), "Claude Fable 5.2")
         self.assertEqual(review.claude_display("claude-opus-5-5-20261001"), "Claude Opus 5.5")
 
+    def test_agy_envelope(self):
+        good = {"summary": "s", "findings": []}
+        self.assertEqual(review.agy_review(json.dumps(
+            {"status": "SUCCESS", "structured_output": good}), "", 0), good)
+        fallback = json.dumps({"status": "SUCCESS", "response": json.dumps(good)})
+        self.assertEqual(review.agy_review(fallback, "", 0), good)
+        for stdout, code in (('{"status": "ERROR", "error": "weekly quota"}', 1),
+                             (json.dumps({"status": "SUCCESS", "structured_output": good}), 1),
+                             ('{"status": "SUCCESS", "response": ""}', 0),
+                             ("Error: Please sign in", 1), ("[]", 0), ("", 0)):
+            with self.assertRaises(review.ReviewError):
+                review.agy_review(stdout, "stderr text", code)
+
     def test_extract_json(self):
         self.assertEqual(review.extract_json('Here {not json} ```json\n{"summary": "s"}\n```'),
                          {"summary": "s"})
