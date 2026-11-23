@@ -2,15 +2,16 @@
 """Report how much of each provider's weekly subscription allowance is used.
 
 Anthropic: a one-word Claude prompt whose stream carries the weekly window.
-OpenAI: the rate limits Codex records in its newest session rollout, refreshed
-with a small prompt when that record is too old.
+Google: the weekly Gemini window that the Antigravity CLI's /usage command
+reports. That command runs no model.
 
-Prints JSON: {"anthropic": {...}, "openai": {...}}. A provider that cannot be
+Prints JSON: {"anthropic": {...}, "google": {...}}. A provider that cannot be
 read has "weekly_used_percent": null and an "error". Unknown never means
 exhausted or unlimited.
 """
 
 import argparse
+from datetime import datetime
 import json
 import os
 from pathlib import Path
@@ -20,10 +21,9 @@ import subprocess
 import time
 
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "agent-usage.json"
-WEEK_MINUTES = 7 * 24 * 60
 PROBE_TIMEOUT = 180
 MAX_READING_AGE = 24 * 3600
-API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY")
+API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 
 
 def child_env():
@@ -110,116 +110,75 @@ def probe_claude():
     return reading or unknown("claude probe reported no weekly window")
 
 
-def parse_codex_rollout(text, observed_at):
-    """Weekly reading from the last rate_limits record in a rollout file."""
-    for line in reversed(text.splitlines()):
-        if '"rate_limits"' not in line:
-            continue
-        match = re.search(r'"rate_limits"\s*:\s*', line)
-        if not match:
-            continue
-        try:
-            limits, _ = json.JSONDecoder().raw_decode(line[match.end():])
-        except ValueError:
-            continue
-        if not isinstance(limits, dict):
-            continue
-        windows = [
-            window for window in (limits.get("primary"), limits.get("secondary"))
-            if isinstance(window, dict) and window.get("window_minutes") == WEEK_MINUTES
-            and isinstance(window.get("used_percent"), (int, float))
-        ]
-        if not windows:
-            continue
-        window = max(windows, key=lambda item: item["used_percent"])
-        used = float(window["used_percent"])
-        return {
-            "weekly_used_percent": round(used, 1),
-            "resets_at": window.get("resets_at"),
-            "observed_at": int(observed_at),
-            "source": "codex session record",
-        }
-    return None
-
-
-def newest_codex_reading(sessions, limit=8):
-    """Newest rollout that carries a weekly window, looking at recent files only."""
-    if not sessions.is_dir():
+def parse_agy_usage(text, now):
+    """Weekly Gemini reading from `agy --output-format json -p=/usage`."""
+    try:
+        groups = json.loads(text)["command"]["data"]["groups"]
+    except (ValueError, KeyError, TypeError):
         return None
-    rollouts = sorted(sessions.glob("*/*/*/rollout-*.jsonl"),
-                      key=lambda path: path.stat().st_mtime, reverse=True)
-    for path in rollouts[:limit]:
-        try:
-            with path.open("rb") as handle:
-                handle.seek(0, os.SEEK_END)
-                handle.seek(max(0, handle.tell() - 512 * 1024))
-                tail = handle.read().decode("utf-8", "replace")
-        except OSError:
+    for group in groups if isinstance(groups, list) else []:
+        if not isinstance(group, dict) or not str(group.get("name", "")).startswith("Gemini"):
             continue
-        reading = parse_codex_rollout(tail, path.stat().st_mtime)
-        if reading:
-            return reading
+        for bucket in group.get("buckets") or []:
+            if not isinstance(bucket, dict) or bucket.get("window") != "weekly":
+                continue
+            left = bucket.get("remaining_fraction")
+            if not isinstance(left, (int, float)):
+                continue
+            try:
+                reset = int(datetime.fromisoformat(
+                    str(bucket.get("reset_time")).replace("Z", "+00:00")).timestamp())
+            except ValueError:
+                reset = None
+            return {
+                "weekly_used_percent": round(min(100.0, max(0.0, (1 - left) * 100)), 1),
+                "resets_at": reset,
+                "observed_at": int(now),
+                "source": "agy /usage",
+            }
     return None
 
 
-def newest_codex_slug(models, family):
-    """Highest listed version of a model class, e.g. gpt-6.1-terra."""
-    pattern = re.compile(rf"gpt-(\d+(?:\.\d+)*)-{re.escape(family)}")
+def newest_agy_model(listing, family, effort):
+    """(id, name) of the highest listed version of a Gemini class at one effort.
+
+    `listing` is `agy models` output: an id, a tab, and a label on each line,
+    e.g. "gemini-4-neon-xhigh<TAB>Gemini 4 Neon (XHigh)".
+    """
+    pattern = re.compile(rf"gemini-(\d+(?:\.\d+)*)-{re.escape(family)}-{re.escape(effort)}")
     candidates = []
-    for model in models:
-        match = pattern.fullmatch(model.get("slug", ""))
-        if match and model.get("visibility") == "list" and not model.get("upgrade"):
-            candidates.append((tuple(int(part) for part in match[1].split(".")), model["slug"]))
-    return max(candidates)[1] if candidates else None
+    for line in listing.splitlines():
+        slug, _, label = line.partition("\t")
+        match = pattern.fullmatch(slug.strip())
+        if match:
+            name = re.sub(r"\s*\([^)]*\)\s*$", "", label.strip()) or slug.strip()
+            candidates.append((tuple(int(part) for part in match[1].split(".")),
+                               slug.strip(), name))
+    return max(candidates)[1:] if candidates else None
 
 
-def codex_models(codex_home):
+def run_agy(arguments, timeout):
+    """Run agy on the signed-in Google subscription; None when it cannot run."""
+    agy = find_cli("agy")
+    if not agy:
+        return None
     try:
-        return json.loads((codex_home / "models_cache.json").read_text())["models"]
-    except (OSError, ValueError, KeyError):
-        return []
-
-
-def codex_on_subscription(codex):
-    """True when Codex is signed in with ChatGPT, not a metered API key."""
-    try:
-        result = subprocess.run([codex, "login", "status"], capture_output=True, text=True,
-                                timeout=30, stdin=subprocess.DEVNULL, env=child_env())
+        return subprocess.run([agy, *arguments], capture_output=True, text=True,
+                              timeout=timeout, cwd=Path.home(),
+                              stdin=subprocess.DEVNULL, env=child_env())
     except (OSError, subprocess.TimeoutExpired):
-        return False
-    return result.returncode == 0 and "chatgpt" in (result.stdout + result.stderr).lower()
+        return None
 
 
-def probe_codex(codex_home):
-    """Run one small prompt so Codex writes a fresh rate-limit record."""
-    codex = find_cli("codex")
-    slug = newest_codex_slug(codex_models(codex_home), "terra")
-    if not codex or not slug or not codex_on_subscription(codex):
-        return False
-    try:
-        subprocess.run(
-            [codex, "exec", "-m", slug, "-c", 'model_reasoning_effort="low"',
-             "-s", "read-only", "--skip-git-repo-check", "--ignore-user-config",
-             "--disable", "apps", "--disable", "plugins",
-             "Reply with the single word ok"],
-            capture_output=True, text=True, timeout=PROBE_TIMEOUT, cwd=Path.home(),
-            stdin=subprocess.DEVNULL, env=child_env(),
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return True
-
-
-def read_openai(max_age, probe):
-    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    sessions = codex_home / "sessions"
-    reading = newest_codex_reading(sessions)
-    fresh = still_valid(reading) and time.time() - reading["observed_at"] <= max_age
-    if not fresh and probe and probe_codex(codex_home):
-        reading = newest_codex_reading(sessions) or reading
-    if reading and not still_valid(reading):
-        return unknown("the last Codex reading is out of date")
-    return reading or unknown("no Codex session records a weekly window")
+def read_google():
+    """The weekly Gemini window. /usage runs no model, so nothing is cached."""
+    if not find_cli("agy"):
+        return unknown("agy CLI not found")
+    result = run_agy(["--output-format", "json", "-p=/usage"], PROBE_TIMEOUT)
+    if result is None or result.returncode:
+        return unknown("agy could not report usage; sign in by running agy once")
+    return parse_agy_usage(result.stdout, time.time()) \
+        or unknown("agy reported no weekly Gemini window")
 
 
 def read_anthropic(max_age, probe):
@@ -246,7 +205,7 @@ def read_anthropic(max_age, probe):
 
 
 def read_usage(max_age=3600, probe=True):
-    return {"anthropic": read_anthropic(max_age, probe), "openai": read_openai(max_age, probe)}
+    return {"anthropic": read_anthropic(max_age, probe), "google": read_google()}
 
 
 def main():

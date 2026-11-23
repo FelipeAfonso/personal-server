@@ -17,7 +17,7 @@ def main():
     if not (target / "agents").is_dir():
         parser.error("target must contain an agents directory")
     files = [Path(name) for name in (
-        "claude-global.md", "codex-global.md", "opencode-global.md",
+        "claude-global.md", "antigravity-global.md", "opencode-global.md",
         "models.md", "workflow.md", "skills/plan-html-workflow/SKILL.md",
     )]
     files.extend(

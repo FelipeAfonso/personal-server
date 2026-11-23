@@ -1,6 +1,7 @@
 import copy
 import datetime as dt
 import importlib.util
+import json
 import pathlib
 import tempfile
 import threading
@@ -14,18 +15,62 @@ spec.loader.exec_module(runner)
 
 class PolicyTests(unittest.TestCase):
     def test_newest_listed_model_in_family_is_selected(self):
-        models = [
-            {"slug": "gpt-5.6-sol", "visibility": "list"},
-            {"slug": "gpt-6.1-sol", "visibility": "list"},
-            {"slug": "gpt-6-sol", "visibility": "list"},
-            {"slug": "gpt-7-sol", "visibility": "hide"},
-            {"slug": "gpt-6.2-sol", "visibility": "list", "upgrade": {"model": "gpt-6.1-sol"}},
-            {"slug": "gpt-6.5-astra", "visibility": "list"},
-        ]
-        self.assertEqual(runner.newest_model(models, "sol"), "gpt-6.1-sol")
-        self.assertEqual(runner.newest_model(models, "astra"), "gpt-6.5-astra")
+        listing = ("Fetching available models...\n"
+                   "gemini-4-neon-high\tGemini 4 Neon (High)\n"
+                   "gemini-4.5-neon-high\tGemini 4.5 Neon (High)\n"
+                   "gemini-5-neon-xhigh\tGemini 5 Neon (XHigh)\n"
+                   "gemini-6-carbon-high\tGemini 6 Carbon (High)\n"
+                   "gemini-pro-orchestrator-neon\tOrchestrator (Neon)\n")
+        self.assertEqual(runner.newest_model(listing, "neon"), "gemini-4.5-neon-high")
+        self.assertEqual(runner.newest_model(listing, "neon", "xhigh"), "gemini-5-neon-xhigh")
+        for missing in ("argon", "sol"):
+            with self.assertRaises(runner.MaintenanceError):
+                runner.newest_model(listing, missing)
         with self.assertRaises(runner.MaintenanceError):
-            runner.newest_model(models, "terra")
+            runner.newest_model("Error: Please sign in to view available models.", "neon")
+
+    def test_agents_get_file_tools_only_and_never_paid_usage(self):
+        config = {"agy": "agy", "claude": "claude"}
+        repair = runner.agent_command(config, "repair", "gemini-4-neon-high", 900)
+        settings = json.loads(repair[repair.index("--settings") + 1])
+        for rule in ("command(*)", "read_url(*)", "execute_url(*)", "mcp(*)"):
+            self.assertIn(rule, settings["permissions"]["deny"])
+        self.assertFalse(settings["useG1Credits"])
+        self.assertEqual(settings["modelProvider"], "")
+        self.assertNotIn("--dangerously-skip-permissions", repair)
+        review = runner.agent_command(config, "review", "fable", 900, {"type": "object"})
+        self.assertEqual(review[review.index("--tools") + 1], "Read,Grep,Glob")
+        self.assertEqual(review[review.index("--model") + 1], "fable")
+        self.assertIn("--safe-mode", review)
+        self.assertNotIn("--dangerously-skip-permissions", review)
+        self.assertFalse(any("Bash" in part for part in review))
+
+    def test_only_the_repair_can_write_the_checkout(self):
+        repair = runner.sandbox_properties("felipe", "repair", "/work/run", 60, ["127.0.0.0/8"])
+        review = runner.sandbox_properties("felipe", "review", "/work/run", 60, ["127.0.0.0/8"])
+        self.assertIn("/work/run", repair["ReadWritePaths"].split())
+        self.assertNotIn("/work/run", review["ReadWritePaths"].split())
+        self.assertIn("-/home/felipe/.gemini/antigravity-cli", repair["ReadWritePaths"].split())
+        self.assertIn("-/home/felipe/.claude", review["ReadWritePaths"].split())
+        for properties, other in ((repair, ".claude"), (review, ".gemini")):
+            hidden = properties["InaccessiblePaths"].split()
+            for path in (".t3", ".ssh", ".config/systemd", other):
+                self.assertIn(f"-/home/felipe/{path}", hidden)
+            self.assertIn("-/nix/var/nix/daemon-socket", hidden)
+            self.assertEqual(properties["ProtectHome"], "read-only")
+            self.assertEqual(properties["NoNewPrivileges"], "yes")
+
+    def test_agent_envelope_must_report_success(self):
+        self.assertEqual(runner.agent_result("repair", '{"status": "SUCCESS", "response": "ok"}'), "ok")
+        review = runner.agent_result("review", '{"is_error": false, "structured_output": {"approved": true}}')
+        self.assertEqual(json.loads(review), {"approved": True})
+        for role, output in (("repair", '{"status": "ERROR", "error": "quota"}'),
+                             ("repair", "Please sign in"), ("repair", "[]"),
+                             ("review", '{"is_error": true, "structured_output": {"approved": true}}'),
+                             ("review", '{"is_error": false, "result": "plain text"}'),
+                             ("review", "")):
+            with self.assertRaises(runner.MaintenanceError):
+                runner.agent_result(role, output)
 
     def test_only_sunday_night_is_allowed(self):
         for weekday in range(7):
@@ -101,7 +146,8 @@ class PolicyTests(unittest.TestCase):
             instance.checkout = pathlib.Path(directory)
             instance.run_dir = pathlib.Path(directory)
             instance.base = "base"
-            instance.models = {"review": "gpt-6-astra"}
+            instance.models = {"review": "fable"}
+            instance.write_diff = lambda *revisions: None
             instance.agent = lambda *args: '{"approved": false, "issues": ["Unsafe change"]}'
             with self.assertRaises(runner.MaintenanceError):
                 instance.review("candidate")
@@ -112,7 +158,8 @@ class PolicyTests(unittest.TestCase):
             instance.checkout = pathlib.Path(directory)
             instance.run_dir = pathlib.Path(directory)
             instance.base = "base"
-            instance.models = {"review": "gpt-6-astra"}
+            instance.models = {"review": "fable"}
+            instance.write_diff = lambda *revisions: None
             instance.agent = lambda *args: "Not JSON"
             with self.assertRaises(ValueError):
                 instance.review("candidate")

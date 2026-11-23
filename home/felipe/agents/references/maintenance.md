@@ -40,6 +40,6 @@ the prose. Do not bypass the gate.
 
 The scripts are repository-managed. The hooks block in settings.json is
 maintained separately because Claude writes to that file at runtime. Preserve
-unrelated settings when repairing it. Codex and OpenCode read the unslop
+unrelated settings when repairing it. Antigravity and OpenCode read the unslop
 skill directly when they have no Skill tool; Claude's hook mechanics do not
 apply to those clients.

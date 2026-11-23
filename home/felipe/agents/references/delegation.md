@@ -3,9 +3,8 @@
 Read this before starting a worker. Follow the active client's restrictions
 on delegation and use only models it actually exposes. The routing table in
 the global instructions expresses preferences, not a guarantee of availability.
-If the preferred model is unavailable, try its listed fallback. If neither is
-available, report the limitation rather than inventing a slug or silently
-substituting a model outside the catalog.
+If the bucket's model is unavailable, report the limitation rather than
+inventing a slug or silently substituting a model outside the catalog.
 
 Delegate independent work with a bounded deliverable. Give the worker the
 objective, relevant paths, constraints, whether it may edit, and the expected
@@ -17,27 +16,46 @@ Use separate worktrees for concurrent writers. Read-only workers can share a
 checkout. Don't create thin wrapper agents when a direct CLI call suffices.
 Select a bucket and set its model and effort explicitly. Use the current
 bucket table in the global instructions; do not infer effort from the model's
-name or apply a blanket setting. Opus uses medium for Implementation and
-xhigh for Product. Sol uses high. Sonnet wrappers may use low.
+name or apply a blanket setting. Fable uses high. Neon uses high for
+Implementation and medium for Routine. Neon wrappers may use low.
 
-Routine workers only implement settled instructions. Give them acceptance
+Neon workers only implement settled instructions. Give them acceptance
 criteria and return unresolved decisions to Reasoning. Use Reasoning for
-substantive technical review and Product for user-facing review. Review is a
-role within a bucket; it does not require every available model to participate.
+substantive technical review and Product for user-facing review; both are
+Fable, in a session that did not write the change.
 
 Check recent usage when it could affect model selection:
 `~/.agents/skills/pr-review/scripts/agent-usage` prints the weekly allowance
-used on both subscriptions. The Astra threshold
-is 30% weekly allowance remaining, not 30% used. It is advisory: task-specific
-superiority overrides quota conservation, subject to explicit user limits.
-Read `~/.agents/references/models.md` for shared pools, stale readings, and
-exhaustion. Choose at task boundaries; keep a healthy worker on its task.
-Never switch to paid overages automatically.
+used on both subscriptions. Read `~/.agents/references/models.md` for shared
+pools, stale readings, and exhaustion. Choose at task boundaries; keep a
+healthy worker on its task. Never switch to paid overages automatically.
 
-## From Codex
+## From Claude
 
-Use native subagents when available and permitted. Claude models require the
-Claude CLI. For read-only work:
+Use the client's supported Claude model and effort parameters for Fable. In
+T3 Code, start Neon with `delegate_task` on the Antigravity provider. Anywhere
+else, call the Antigravity CLI through Bash. Put `-p` last, because it takes
+the next argument as the prompt:
+
+```sh
+agy --model <newest neon id for the effort> --output-format json \
+  --settings '{"permissions":{"deny":["write_file(*)","command(*)"]}}' \
+  -p "<self-contained prompt>"
+```
+
+That form is read-only. A headless run cannot answer permission prompts: an
+action that needs approval is denied and can end the run with no answer. So
+state the access in `--settings`. For editing, use `--mode accept-edits` in an
+isolated checkout and allow the commands the task needs, for example
+`{"permissions":{"allow":["command(git)","command(npm test)"]}}`. Keep
+`"useG1Credits": false`. Never pass `--dangerously-skip-permissions`, and
+never work around a permission failure.
+
+## From Antigravity or OpenCode
+
+Use native subagents when available and permitted. Check `opencode models`
+before selecting a provider there; native workers may not expose the catalog
+models. Fable requires the Claude CLI. For read-only work:
 
 ```sh
 claude -p --model fable --effort high --permission-mode plan \
@@ -48,40 +66,19 @@ Use `--output-format json` when the result needs parsing. For editing, use the
 normal permissions and prefer `--worktree <name>` for isolation. Never pass
 `--dangerously-skip-permissions` or `--allow-dangerously-skip-permissions`.
 
-## From Claude
-
-Use the client's supported Claude model and effort parameters. For GPT work,
-call Codex directly through Bash:
-
-```sh
-codex exec -m <newest astra slug> -c model_reasoning_effort="high" -s read-only \
-  "<self-contained prompt>"
-```
-
-For authorized editing, choose the appropriate writable sandbox and isolated
-checkout. Never work around a permission failure.
-
-## From OpenCode
-
-Check `opencode models` before selecting a provider. Native workers may not
-expose the preferred models. Use the Claude or Codex CLI when needed, following
-the commands and permission boundaries above.
-
 ## Catalog identifiers
 
-The catalog names model classes: Astra, Fable, Opus, Sol, Sonnet, Terra, and
-Luna. Always resolve a class to its newest generally available version; do
-not pin an older version unless Felipe asks for one.
+The catalog names two model classes: Fable and Neon. Always resolve a class
+to its newest generally available version; do not pin an older version unless
+Felipe asks for one.
 
-Claude CLI aliases `fable`, `opus`, and `sonnet` already resolve to the newest
-model in each class, so pass the alias rather than a full model name.
+The Claude CLI alias `fable` already resolves to the newest Fable, so pass the
+alias rather than a full model name.
 
-Codex slugs follow `gpt-<version>-<class>`. List them from
-`~/.codex/models_cache.json` and pick the highest version for the class among
-models with `"visibility": "list"`. Skip hidden models and models scheduled
-for retirement. If the cache is missing or stale, run `codex` once to refresh
-it, or report the limitation. Luna is retained in the catalog without an
-active bucket; do not select it as an automatic fallback. Do not assume a
-listed identifier is exposed by every client. If a required effort level is
-unavailable, report that limitation and use an eligible alternate rather than
-silently lowering it.
+Antigravity ids follow `gemini-<version>-neon-<effort>`, for example
+`gemini-4-neon-high`. List them with `agy models` and pick the highest version
+at the bucket's effort. T3 Code lists the same model as `gemini-4-neon` with a
+separate `thought_level` option. If `agy models` asks for a sign-in, report
+that; only Felipe can sign in. Do not assume a listed identifier is exposed
+by every client. If a required effort level is unavailable, report that
+limitation rather than silently lowering it.

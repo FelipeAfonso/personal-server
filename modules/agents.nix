@@ -1,12 +1,13 @@
 { ... }:
 
 {
-  # Agent CLIs (claude, codex, opencode) are deliberately NOT installed here:
+  # Agent CLIs (claude, agy, opencode) are deliberately NOT installed here:
   # Nix-store binaries are read-only, which breaks T3 Code's provider
   # auto-update. They live user-level instead, where T3's update commands
   # recognize them; on a fresh machine, bootstrap with:
   #   curl -fsSL https://claude.ai/install.sh | bash   # ~/.local/bin/claude
-  #   bun i -g @openai/codex opencode-ai               # ~/.bun/bin/{codex,opencode}
+  #   bun i -g opencode-ai                             # ~/.bun/bin/opencode
+  #   Antigravity's installer, see antigravity.google/docs/install  # ~/.local/bin/agy
   # Their installers ship generic dynamically-linked binaries, which need
   # nix-ld to run on NixOS.
   programs.nix-ld.enable = true;

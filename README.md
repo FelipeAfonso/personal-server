@@ -16,13 +16,13 @@ hosts/rlyeh/
 modules/
   core.nix                    nix settings, gc, tz/locale, zram, base tools
   network.nix                 sshd (key-only), tailscale, firewall (tailnet-first)
-  agents.nix                  claude-code, codex, opencode, docker
+  agents.nix                  claude-code, agy, opencode, docker
   dev.nix                     go, rust, bun, node, odin + raylib, build essentials
   headless-gfx.nix            xvfb-run, headless chromium, capture tools, fonts
   secrets.nix                 sops-nix wiring (dormant until secrets repo exists)
   backups.nix                 Turso dumps (4h, df-dd-api daily) -> ~/backups/turso/<db>, 7-day retention
 home/felipe/                  home-manager: zsh, tmux, nvim, starship, lazygit, opencode, bin scripts
-  agents/                     global prompts for claude/codex/opencode, shared model table (models.md), vendored skills (unslop, plan-html-workflow, tstack, nyarlathotep, pr-review)
+  agents/                     global prompts for claude/antigravity/opencode, shared model table (models.md), vendored skills (unslop, plan-html-workflow, tstack, nyarlathotep, pr-review)
 ```
 
 ## Design decisions (short version)
@@ -98,12 +98,12 @@ No browser runs on rlyeh; your local browser does the work.
 - **Device-code flows** (`claude`, `gh auth login`, `tailscale up`): run the
   command in SSH/tmux, open the printed URL in your local browser, approve.
   The remote terminal unblocks on its own.
-- **Localhost-callback flows** (`codex login`, listens on `localhost:1455`):
-
-  ```sh
-  ssh -L 1455:localhost:1455 rlyeh
-  codex login   # then open the printed localhost URL in your LOCAL browser
-  ```
+- **Paste-back flows** (`agy`): run `agy` in SSH/tmux, open the printed URL in
+  your local browser, sign in with the Google AI account, and paste the code
+  the browser shows back into the terminal.
+- **Localhost-callback flows** (a CLI that listens on a localhost port):
+  forward the port with `ssh -L <port>:localhost:<port> rlyeh`, run the login
+  command, then open the printed localhost URL in your LOCAL browser.
 
 - **Stubborn apps**: log in on another machine and copy the credential file
   (e.g. `~/.claude/.credentials.json`), or park the key in the secrets repo.
@@ -112,8 +112,8 @@ No browser runs on rlyeh; your local browser does the work.
 
 ## Shared agent instructions
 
-`home/felipe/agents/` owns the shared instructions for Claude, Codex, and
-OpenCode. Each installed file combines its client instructions, `models.md`,
+`home/felipe/agents/` owns the shared instructions for Claude, Antigravity,
+and OpenCode. Each installed file combines its client instructions, `models.md`,
 `workflow.md`, and the machine's operating notes. Change common policy in
 `workflow.md`; keep client tool details in `<cli>-global.md`.
 
@@ -126,7 +126,7 @@ python3 scripts/sync-agent-prompts.py ../personal-desktop
 The check exits with status 1 if a shared file differs or is missing. To copy
 updates, switch the target repo to a task branch and add `--write`. The script
 refuses to overwrite uncommitted changes in the target files. It also syncs
-the planning skill's instructions, all nine vendored tstack skills, the
+the planning skill's instructions, all eight vendored tstack skills, the
 nyarlathotep and pr-review skills, and shared references. Machine notes and `references/rlyeh.md` stay in their own repo.
 Commit and review the changes in both repos before deployment.
 
@@ -135,9 +135,9 @@ and install under `~/.agents/references/`; the global instructions say when
 to read each file. Shared references sync to the desktop, while each machine
 owns its own operations reference. Check the links as part of deployment.
 Every PR is reviewed by the [pr-review skill](home/felipe/agents/skills/pr-review/SKILL.md)
-instead of a paid review bot. Its script picks a reviewer from the model
-buckets and the weekly allowance left on the Claude and Codex subscriptions,
-then posts the findings on the PR. Test it with
+instead of a paid review bot. Its script reviews with Fable, falls back to
+Neon when the Claude subscription's weekly allowance runs low, and posts the
+findings on the PR. Test it with
 `python3 home/felipe/agents/skills/pr-review/scripts/test_pr_review.py`.
 
 The [model catalog brief](home/felipe/agents/references/model-usage.md) explains
@@ -170,18 +170,20 @@ The store-owned runner creates a separate clone under
 `~/code/personal/personal-server-maintenance/`, updates `nixpkgs`, `disko`,
 `home-manager`, and `sops-nix`, and keeps the private secrets input pinned.
 It runs `nix flake check` and builds the full system. A failed build gets
-one repair attempt from the newest Sol at high effort; the newest Astra independently
-reviews the final changes at high effort. Both use the existing Codex account
-login. Missing models, expired authentication, and quota failures stop the run;
-there is no paid API fallback. Models follow the installed bucket catalog;
-weekly usage is currently unknown, so the normal Reasoning preference applies.
+one repair attempt from the newest Neon at high effort through `agy`; Fable
+independently reviews the final changes at high effort through `claude`. Both
+use Felipe's existing subscription logins. Missing models, expired
+authentication, and quota failures stop the run; there is no paid API or AI
+credit fallback. Models follow the installed bucket catalog.
 
 Agents run as Felipe in temporary systemd services with a private PID
-namespace, a read-only system, and access to their checkout and Codex state.
-Docker, privileged Nix sockets, systemd buses, host keys, secrets, T3 files,
-and the user service configuration are hidden. Network connections to the
-machine's own addresses are blocked. Codex authentication and session state
-remain shared with Felipe's existing account. The trusted runner performs
+namespace and a read-only system. They get file tools only and run no
+commands; the runner writes the diff to a file for them. Only the repair
+agent can write the checkout. Each agent can write its own CLI's state and
+cannot see the other's login. Docker, privileged Nix sockets, systemd buses,
+host keys, secrets, T3 files, and the user service configuration are hidden.
+Network connections to the machine's own addresses are blocked. The preflight
+checks this confinement itself with a small script instead of asking a model. The trusted runner performs
 the builds, GitHub delivery, merge, and privileged activation. Agent repairs
 can change only the lockfile and dependency declarations in `modules/dev.nix`
 and `modules/headless-gfx.nix`. Broader repairs need a separate task.

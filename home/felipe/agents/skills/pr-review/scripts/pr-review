@@ -3,14 +3,14 @@
 
 Run inside a checkout of the PR's repository:
 
-    pr-review [PR number or URL] [--builder CLASS] [--job auto|reasoning|product]
+    pr-review [PR number or URL] [--job auto|reasoning|product]
     pr-review --local [--base REF]      review committed work on HEAD, print only
 
-The reviewer comes from the model buckets: Reasoning for code, Product for
-changes that are mostly UI. Weekly allowance on each subscription decides
-between the Anthropic and OpenAI candidates. The reviewer reads the PR head in
-a temporary worktree, read-only, and its findings are posted as one GitHub
-review with inline comments.
+Fable reviews. Neon takes over when the Anthropic weekly allowance is at 30%
+or less, or when Fable does not finish. The job sets what the reviewer looks
+for: Reasoning for code, Product for changes that are mostly UI. The reviewer
+reads the PR head in a temporary worktree, read-only, and its findings are
+posted as one GitHub review with inline comments.
 
 Exit status: 0 no findings, 1 findings to handle, 2 the review did not run.
 """
@@ -34,17 +34,22 @@ REVIEW_TIMEOUT = 45 * 60
 MAX_FINDINGS = 15
 MARKER = "<!-- pr-review:{sha} findings={count} -->"
 MARKER_PATTERN = re.compile(r"<!-- pr-review:([0-9a-f]{40}) findings=(\d+) -->")
-API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY")
+API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 SEVERITIES = ("blocker", "major", "minor", "nit")
 
-# Bucket order from the global model table: (class, provider, effort).
-# Astra closes the Product list so a low Anthropic allowance has somewhere to go.
-CANDIDATES = {
-    "reasoning": [("astra", "openai", "high"), ("fable", "anthropic", "high")],
-    "product": [("fable", "anthropic", "high"), ("opus", "anthropic", "xhigh"),
-                ("astra", "openai", "high")],
+# Reviewers in order of preference: (class, provider, effort). Review is a
+# Reasoning or Product job, and Fable holds both buckets. Neon is the fallback.
+CANDIDATES = [("fable", "anthropic", "high"), ("neon", "google", "xhigh")]
+PROVIDER_NAMES = {"anthropic": "Anthropic", "google": "Google"}
+# Settings for a Neon review, applied to that run only. The deny rules make it
+# read-only, reads outside the workspace are refused, and a spent allowance
+# never falls through to paid AI credits or a metered API key.
+AGY_SETTINGS = {
+    "agentMode": "", "toolPermission": "request-review",
+    "allowNonWorkspaceAccess": False, "useG1Credits": False, "modelProvider": "",
+    "permissions": {"deny": ["write_file(*)", "command(*)", "read_url(*)",
+                             "execute_url(*)", "mcp(*)"]},
 }
-PROVIDER_NAMES = {"anthropic": "Anthropic", "openai": "OpenAI"}
 UI_SUFFIXES = {".tsx", ".jsx", ".vue", ".svelte", ".astro", ".css", ".scss", ".sass",
                ".less", ".html", ".mdx"}
 
@@ -177,18 +182,14 @@ def remaining(usage, provider):
     return None if used is None else max(0.0, 100.0 - used)
 
 
-def order_candidates(job, usage, builder=None):
-    """Bucket candidates, best first, given weekly allowance and the builder.
+def order_candidates(usage):
+    """Reviewers, best first, given the weekly allowance on each subscription.
 
-    A provider above the threshold, or with no reading, keeps its bucket order.
+    A provider above the threshold, or with no reading, keeps its place.
     Providers at or below it move behind, fullest allowance first. A spent
-    allowance goes last. The builder's own model class is skipped when another
-    candidate exists, so the reviewer is not the author.
+    allowance goes last.
     """
-    candidates = CANDIDATES[job]
-    others = [item for item in candidates if item[0] != (builder or "").lower()]
-    if others:
-        candidates = others
+    candidates = CANDIDATES
 
     def rank(indexed):
         index, (_, provider, _) = indexed
@@ -204,7 +205,7 @@ def order_candidates(job, usage, builder=None):
 
 def describe_usage(usage):
     parts = []
-    for provider in ("anthropic", "openai"):
+    for provider in PROVIDER_NAMES:
         left = remaining(usage, provider)
         name = PROVIDER_NAMES[provider]
         parts.append(f"{name} weekly allowance unknown" if left is None
@@ -212,17 +213,15 @@ def describe_usage(usage):
     return ", ".join(parts)
 
 
-def explain_choice(job, chosen, usage, builder=None, failed=()):
+def explain_choice(chosen, usage, failed=()):
     model, provider, _ = chosen
-    preferred = CANDIDATES[job][0]
+    preferred = CANDIDATES[0]
     title = model.capitalize()
     if failed:
         names = " and ".join(name.capitalize() for name in failed)
         reason = f"{title} reviews because {names} did not finish"
     elif chosen == preferred:
-        reason = f"{title} is the {job.capitalize()} preference"
-    elif preferred[0] == (builder or "").lower():
-        reason = f"{title} reviews because {preferred[0].capitalize()} built the change"
+        reason = f"{title} is the review preference"
     else:
         left = remaining(usage, preferred[1])
         state = "spent" if left == 0 else f"at or below {THRESHOLD:.0f}%"
@@ -298,12 +297,6 @@ def claude_display(model_id):
     return f"Claude {parts[1].capitalize()} {version}".strip()
 
 
-def codex_display(slug):
-    """gpt-6-astra -> GPT-6 Astra"""
-    match = re.fullmatch(r"gpt-([\d.]+)-(\w+)", slug)
-    return f"GPT-{match[1]} {match[2].capitalize()}" if match else slug
-
-
 def extract_json(text):
     """The first JSON object in a model reply, with or without a code fence."""
     start = text.find("{")
@@ -346,42 +339,40 @@ def run_claude(usage_module, model, effort, prompt, workdir):
     return review, claude_display(model_id) if model_id else f"Claude {model.capitalize()}"
 
 
-def run_codex(usage_module, model, effort, prompt, workdir):
-    codex = usage_module.find_cli("codex")
-    if not codex:
-        raise ReviewError("codex CLI not found")
-    if not usage_module.codex_on_subscription(codex):
-        raise ReviewError("codex is not signed in with the ChatGPT subscription")
-    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-    slug = usage_module.newest_codex_slug(usage_module.codex_models(codex_home), model)
-    if not slug:
-        raise ReviewError(f"no listed Codex model for class {model}")
-    schema_file, out_file = workdir / "schema.json", workdir / "review.json"
+def run_agy(usage_module, model, effort, prompt, workdir):
+    listing = usage_module.run_agy(["models"], 60)
+    if listing is None:
+        raise ReviewError("agy CLI not found or not responding")
+    found = usage_module.newest_agy_model(listing.stdout, model, effort)
+    if not found:
+        detail = (listing.stderr or listing.stdout).strip()[-200:]
+        raise ReviewError(f"agy lists no {model} model at {effort} effort: {detail}")
+    slug, display = found
+    # agy takes its prompt as an argument, and a PR description can outgrow
+    # one, so the prompt goes in a file the reviewer reads first.
+    (workdir / "prompt.md").write_text(prompt)
+    schema_file = workdir / "schema.json"
     schema_file.write_text(json.dumps(SCHEMA))
-    out_file.unlink(missing_ok=True)
-    # A permission profile that can read the workspace and the system basics,
-    # not the home directory. Codex's own install must stay readable to run.
-    package = Path(codex).resolve()
-    for parent in package.parents:
-        if parent.name == "node_modules":
-            package = parent
-            break
-    else:
-        package = package.parent
-    profile = ('permissions.review.filesystem={":minimal"="read",'
-               '":project_roots"={"."="read"},' + json.dumps(str(package)) + '="read"}')
     result = run(
-        [codex, "exec", "-m", slug, "-c", f'model_reasoning_effort="{effort}"',
-         "-c", profile, "-c", 'default_permissions="review"',
-         # No connected accounts, plugins, or web: the reviewer reads files only.
-         "--disable", "apps", "--disable", "plugins", "-c", 'web_search="disabled"',
-         "--skip-git-repo-check", "--ignore-user-config",
-         "-C", str(workdir), "--output-schema", str(schema_file),
-         "-o", str(out_file), "-"],
-        cwd=workdir, stdin=prompt, timeout=REVIEW_TIMEOUT, check=False)
-    if result.returncode or not out_file.exists():
-        raise ReviewError(f"codex failed: {(result.stderr or result.stdout).strip()[-400:]}")
-    return extract_json(out_file.read_text()), codex_display(slug)
+        [usage_module.find_cli("agy"), "--model", slug,
+         "--settings", json.dumps(AGY_SETTINGS), "--disable-slash-commands",
+         "--output-format", "json", "--json-schema", str(schema_file),
+         "--print-timeout", f"{REVIEW_TIMEOUT}s",
+         "-p=Read prompt.md in the current directory and follow it exactly."],
+        cwd=workdir, timeout=REVIEW_TIMEOUT + 60, check=False)
+    try:
+        output = json.loads(result.stdout)
+        if not isinstance(output, dict):
+            raise ValueError
+    except ValueError:
+        raise ReviewError(f"agy gave no result: {(result.stderr or result.stdout).strip()[-400:]}")
+    if result.returncode or output.get("status") != "SUCCESS":
+        detail = output.get("error") or output.get("status") or result.stderr
+        raise ReviewError(f"agy failed: {str(detail).strip()[-400:]}")
+    review = output.get("structured_output")
+    if not isinstance(review, dict):
+        review = extract_json(str(output.get("response", "")))
+    return review, display
 
 
 def clean_review(review):
@@ -412,7 +403,7 @@ def review_with(candidates, usage_module, prompt, workdir, effort=None):
     errors = []
     for candidate in candidates:
         model, provider, bucket_effort = candidate
-        runner = run_claude if provider == "anthropic" else run_codex
+        runner = run_claude if provider == "anthropic" else run_agy
         print(f"Reviewing with {model.capitalize()} at {effort or bucket_effort} effort...",
               file=sys.stderr)
         try:
@@ -560,7 +551,6 @@ def main():
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("pr", nargs="?", help="PR number or URL (default: current branch's PR)")
     parser.add_argument("--job", choices=("auto", "reasoning", "product"), default="auto")
-    parser.add_argument("--builder", help="model class that wrote the change, e.g. opus")
     parser.add_argument("--effort", help="override the bucket's reasoning effort")
     parser.add_argument("--local", action="store_true",
                         help="review HEAD against --base and print; no PR needed")
@@ -626,12 +616,12 @@ def main():
 
         job = classify(files) if args.job == "auto" else args.job
         usage = usage_module.read_usage()
-        candidates = order_candidates(job, usage, args.builder)
+        candidates = order_candidates(usage)
         prompt = PROMPT.format(context=context, focus=FOCUS[job], max_findings=MAX_FINDINGS,
                                schema=json.dumps(SCHEMA, indent=2))
         chosen, display, review, errors = review_with(candidates, usage_module, prompt,
                                                       workdir, args.effort)
-        why = explain_choice(job, chosen, usage, args.builder,
+        why = explain_choice(chosen, usage,
                              failed=[error.split(":")[0] for error in errors])
 
         print_findings(review, display, why)

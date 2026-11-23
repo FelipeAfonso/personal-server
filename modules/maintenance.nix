@@ -10,10 +10,12 @@ let
     inherit workspace;
     state = "/var/lib/rlyeh-maintenance";
     user = "felipe";
-    codex = "/home/felipe/.bun/bin/codex";
-    # Model classes; the runner picks the newest listed version of each.
-    repairFamily = "sol";
-    reviewFamily = "astra";
+    agy = "/home/felipe/.local/bin/agy";
+    claude = "/home/felipe/.local/bin/claude";
+    # Model classes. The runner picks the newest Neon that agy lists; the
+    # Claude CLI resolves the Fable alias to its newest version itself.
+    repairModel = "neon";
+    reviewModel = "fable";
   });
   runner = pkgs.writeShellApplication {
     name = "rlyeh-maintenance";

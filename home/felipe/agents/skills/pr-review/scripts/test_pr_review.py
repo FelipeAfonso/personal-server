@@ -23,9 +23,9 @@ review = load("pr_review", "pr-review")
 usage = load("agent_usage", "agent-usage")
 
 
-def readings(anthropic=None, openai=None):
+def readings(anthropic=None, google=None):
     return {"anthropic": {"weekly_used_percent": anthropic},
-            "openai": {"weekly_used_percent": openai}}
+            "google": {"weekly_used_percent": google}}
 
 
 def classes(candidates):
@@ -64,56 +64,48 @@ new file mode 100644
 
 
 class ChoosingTheReviewer(unittest.TestCase):
-    def test_bucket_preference_holds_while_allowance_is_healthy(self):
-        self.assertEqual(classes(review.order_candidates("reasoning", readings(28, 17))),
-                         ["astra", "fable"])
-        self.assertEqual(classes(review.order_candidates("product", readings(28, 17))),
-                         ["fable", "opus", "astra"])
+    def test_fable_reviews_while_allowance_is_healthy(self):
+        self.assertEqual(classes(review.order_candidates(readings(28, 17))),
+                         ["fable", "neon"])
 
     def test_unknown_usage_follows_preference(self):
-        self.assertEqual(classes(review.order_candidates("reasoning", readings())),
-                         ["astra", "fable"])
-
-    def test_low_openai_allowance_moves_reasoning_to_fable(self):
-        self.assertEqual(classes(review.order_candidates("reasoning", readings(40, 75))),
-                         ["fable", "astra"])
+        self.assertEqual(classes(review.order_candidates(readings())), ["fable", "neon"])
+        self.assertEqual(classes(review.order_candidates({})), ["fable", "neon"])
 
     def test_threshold_is_thirty_percent_remaining(self):
-        self.assertEqual(classes(review.order_candidates("reasoning", readings(10, 69)))[0],
-                         "astra")
-        self.assertEqual(classes(review.order_candidates("reasoning", readings(10, 70)))[0],
-                         "fable")
+        self.assertEqual(classes(review.order_candidates(readings(69, 10)))[0], "fable")
+        self.assertEqual(classes(review.order_candidates(readings(70, 10)))[0], "neon")
 
-    def test_low_anthropic_allowance_moves_product_to_astra(self):
-        self.assertEqual(classes(review.order_candidates("product", readings(85, 20))),
-                         ["astra", "fable", "opus"])
+    def test_low_google_allowance_changes_nothing_for_fable(self):
+        self.assertEqual(classes(review.order_candidates(readings(40, 95))),
+                         ["fable", "neon"])
 
     def test_both_low_takes_the_fuller_allowance(self):
-        self.assertEqual(classes(review.order_candidates("reasoning", readings(80, 95)))[0],
-                         "fable")
-        self.assertEqual(classes(review.order_candidates("reasoning", readings(95, 80)))[0],
-                         "astra")
+        self.assertEqual(classes(review.order_candidates(readings(80, 95)))[0], "fable")
+        self.assertEqual(classes(review.order_candidates(readings(95, 80)))[0], "neon")
 
     def test_spent_allowance_goes_last(self):
-        self.assertEqual(classes(review.order_candidates("reasoning", readings(90, 100))),
-                         ["fable", "astra"])
-
-    def test_builder_does_not_review_its_own_work(self):
-        self.assertEqual(classes(review.order_candidates("reasoning", readings(10, 10),
-                                                         builder="Astra")), ["fable"])
-        self.assertEqual(classes(review.order_candidates("product", readings(10, 10),
-                                                         builder="fable"))[0], "opus")
+        self.assertEqual(classes(review.order_candidates(readings(100, 90))),
+                         ["neon", "fable"])
 
     def test_explanation_names_the_reason(self):
-        usage_now = readings(40, 75)
-        chosen = review.order_candidates("reasoning", usage_now)[0]
-        text = review.explain_choice("reasoning", chosen, usage_now)
-        self.assertIn("OpenAI weekly allowance is at or below 30%", text)
-        self.assertIn("Anthropic 60% of the week left", text)
-        preferred = review.explain_choice("reasoning", ("astra", "openai", "high"),
-                                          readings(None, 17))
-        self.assertIn("Astra is the Reasoning preference", preferred)
-        self.assertIn("Anthropic weekly allowance unknown", preferred)
+        usage_now = readings(75, 40)
+        chosen = review.order_candidates(usage_now)[0]
+        text = review.explain_choice(chosen, usage_now)
+        self.assertIn("Neon reviews because the Anthropic weekly allowance is at or below 30%",
+                      text)
+        self.assertIn("Google 60% of the week left", text)
+        preferred = review.explain_choice(("fable", "anthropic", "high"), readings(17, None))
+        self.assertIn("Fable is the review preference", preferred)
+        self.assertIn("Google weekly allowance unknown", preferred)
+
+    def test_neon_review_settings_are_read_only_and_unmetered(self):
+        settings = review.AGY_SETTINGS
+        for rule in ("write_file(*)", "command(*)", "read_url(*)", "mcp(*)"):
+            self.assertIn(rule, settings["permissions"]["deny"])
+        self.assertFalse(settings["useG1Credits"])
+        self.assertFalse(settings["allowNonWorkspaceAccess"])
+        self.assertEqual(settings["modelProvider"], "")
 
 
 class ReadingTheDiff(unittest.TestCase):
@@ -157,18 +149,18 @@ class PostingTheReview(unittest.TestCase):
         self.assertEqual(self.review["findings"][2]["path"], "src/app.py")
 
     def test_only_lines_in_the_diff_become_inline_comments(self):
-        payload = review.build_review(self.review, self.files, "GPT-6 Astra", "felipe",
+        payload = review.build_review(self.review, self.files, "Gemini 4 Neon", "felipe",
                                       "abc1234def", "reasoning", "why")
         self.assertEqual([(c["path"], c["line"]) for c in payload["comments"]],
                          [("src/app.py", 11)])
         self.assertIn("`src/app.py:999`", payload["body"])
         self.assertIn("<!-- pr-review:abc1234def findings=3 -->", payload["body"])
         self.assertTrue(payload["body"].startswith(
-            "> [!NOTE]\n> 🤖 **GPT-6 Astra responding on behalf of felipe**\n\n"))
+            "> [!NOTE]\n> 🤖 **Gemini 4 Neon responding on behalf of felipe**\n\n"))
         self.assertEqual(payload["event"], "COMMENT")
 
     def test_fallback_keeps_every_finding_in_the_body(self):
-        payload = review.build_review(self.review, self.files, "GPT-6 Astra", "felipe",
+        payload = review.build_review(self.review, self.files, "Gemini 4 Neon", "felipe",
                                       "abc1234def", "reasoning", "why", inline=False)
         self.assertEqual(payload["comments"], [])
         self.assertIn("`src/app.py:11`", payload["body"])
@@ -192,15 +184,14 @@ class PostingTheReview(unittest.TestCase):
         self.assertEqual((match[1], match[2]), (sha, "4"))
 
     def test_failed_reviewer_is_the_stated_reason(self):
-        text = review.explain_choice("reasoning", ("fable", "anthropic", "high"),
-                                     readings(28, 20), failed=["astra"])
-        self.assertIn("Fable reviews because Astra did not finish", text)
+        text = review.explain_choice(("neon", "google", "xhigh"),
+                                     readings(28, 20), failed=["fable"])
+        self.assertIn("Neon reviews because Fable did not finish", text)
         self.assertNotIn("at or below", text)
 
     def test_display_names(self):
         self.assertEqual(review.claude_display("claude-fable-5-2"), "Claude Fable 5.2")
         self.assertEqual(review.claude_display("claude-opus-5-5-20261001"), "Claude Opus 5.5")
-        self.assertEqual(review.codex_display("gpt-6.1-sol"), "GPT-6.1 Sol")
 
     def test_extract_json(self):
         self.assertEqual(review.extract_json('Here {not json} ```json\n{"summary": "s"}\n```'),
@@ -251,31 +242,43 @@ class ReadingUsage(unittest.TestCase):
         self.assertFalse(usage.still_valid(old, now=usage.MAX_READING_AGE + 1))
         self.assertFalse(usage.still_valid({"weekly_used_percent": None}, now=1))
 
-    def test_codex_rollout(self):
-        def record(primary, secondary=None, reached=None):
-            return json.dumps({"payload": {"info": {}, "rate_limits": {
-                "primary": primary, "secondary": secondary,
-                "rate_limit_reached_type": reached}}})
-        weekly = {"used_percent": 17.0, "window_minutes": 10080, "resets_at": 9}
-        short = {"used_percent": 80.0, "window_minutes": 300, "resets_at": 3}
-        text = "\n".join([record(short), record(short, weekly), '{"other": 1}'])
-        reading = usage.parse_codex_rollout(text, 50)
-        self.assertEqual((reading["weekly_used_percent"], reading["resets_at"]), (17.0, 9))
-        self.assertIsNone(usage.parse_codex_rollout(record(short), 50))
-        self.assertIsNone(usage.parse_codex_rollout('{"note": "rate_limits"}', 50))
-        spaced = '{"rate_limits" : ' + json.dumps({"primary": weekly}) + "}"
-        self.assertEqual(usage.parse_codex_rollout(spaced, 50)["weekly_used_percent"], 17.0)
-        short_spent = usage.parse_codex_rollout(record(short, weekly, reached="primary"), 50)
-        self.assertEqual(short_spent["weekly_used_percent"], 17.0)
+    def test_agy_usage(self):
+        def report(*groups):
+            return json.dumps({"status": "SUCCESS", "command": {"name": "usage",
+                                                                "data": {"groups": groups}}})
+        gemini = {"name": "Gemini Models", "buckets": [
+            {"id": "gemini-5h", "window": "5h", "remaining_fraction": 0.1},
+            {"id": "gemini-weekly", "window": "weekly", "remaining_fraction": 0.83,
+             "reset_time": "2026-11-30T16:24:12Z"}]}
+        other = {"name": "Claude and GPT models", "buckets": [
+            {"id": "3p-weekly", "window": "weekly", "remaining_fraction": 0.2}]}
+        reading = usage.parse_agy_usage(report(other, gemini), 50)
+        self.assertEqual(reading["weekly_used_percent"], 17.0)
+        self.assertEqual(reading["resets_at"], 1796055852)
+        self.assertEqual(reading["observed_at"], 50)
+        self.assertTrue(usage.still_valid(reading, now=60))
+        self.assertIsNone(usage.parse_agy_usage(report(other), 50))
+        self.assertIsNone(usage.parse_agy_usage(report("junk", {"name": "Gemini Models",
+                                                                "buckets": ["junk"]}), 50))
+        self.assertIsNone(usage.parse_agy_usage("Please sign in", 50))
+        spent = {"name": "Gemini Models", "buckets": [
+            {"window": "weekly", "remaining_fraction": 0, "reset_time": "soon"}]}
+        self.assertEqual(usage.parse_agy_usage(report(spent), 50)["weekly_used_percent"], 100.0)
+        self.assertIsNone(usage.parse_agy_usage(report(spent), 50)["resets_at"])
 
-    def test_newest_codex_slug(self):
-        models = [{"slug": "gpt-6-astra", "visibility": "list"},
-                  {"slug": "gpt-5.6-terra", "visibility": "list"},
-                  {"slug": "gpt-6.1-terra", "visibility": "list"},
-                  {"slug": "gpt-7-terra", "visibility": "hide"},
-                  {"slug": "gpt-6.2-terra", "visibility": "list", "upgrade": {"to": "x"}}]
-        self.assertEqual(usage.newest_codex_slug(models, "terra"), "gpt-6.1-terra")
-        self.assertIsNone(usage.newest_codex_slug(models, "luna"))
+    def test_newest_agy_model(self):
+        listing = ("Fetching available models...\n"
+                   "gemini-4-neon-high\tGemini 4 Neon (High)\n"
+                   "gemini-4-neon-xhigh\tGemini 4 Neon (XHigh)\n"
+                   "gemini-4.5-neon-xhigh\tGemini 4.5 Neon (XHigh)\n"
+                   "gemini-4-carbon-high\tGemini 4 Carbon (High)\n"
+                   "gemini-pro-orchestrator-neon\tOrchestrator (Neon)\n")
+        self.assertEqual(usage.newest_agy_model(listing, "neon", "xhigh"),
+                         ("gemini-4.5-neon-xhigh", "Gemini 4.5 Neon"))
+        self.assertEqual(usage.newest_agy_model(listing, "neon", "high"),
+                         ("gemini-4-neon-high", "Gemini 4 Neon"))
+        self.assertIsNone(usage.newest_agy_model(listing, "neon", "max"))
+        self.assertIsNone(usage.newest_agy_model("Error: Please sign in", "neon", "high"))
 
 
 if __name__ == "__main__":

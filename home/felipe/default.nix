@@ -117,8 +117,9 @@ in
       + builtins.readFile ./agents/workflow.md
       + "\n"
       + builtins.readFile ./agents/rlyeh-agents.md;
-    ".codex/AGENTS.md".text =
-      builtins.readFile ./agents/codex-global.md
+    # Antigravity (agy) loads global rules and skills from ~/.gemini/config.
+    ".gemini/config/AGENTS.md".text =
+      builtins.readFile ./agents/antigravity-global.md
       + "\n"
       + builtins.readFile ./agents/models.md
       + "\n"
@@ -138,7 +139,8 @@ in
       recursive = true;
     };
     # Skills vendored into the repo so a fresh install has them. Claude Code
-    # reads ~/.claude/skills; codex and opencode both read ~/.agents/skills.
+    # reads ~/.claude/skills, opencode reads ~/.agents/skills, and antigravity
+    # reads ~/.gemini/config/skills.
     # Other entries in those dirs (installed with `npx skills add ...`) are
     # left alone.
     ".claude/skills/plan-html-workflow" = {
@@ -153,12 +155,20 @@ in
       source = ./agents/skills/unslop;
       recursive = true;
     };
-    # Codex discovers directory symlinks but skips symlinked SKILL.md files.
+    ".gemini/config/skills/unslop" = {
+      source = ./agents/skills/unslop;
+      recursive = true;
+    };
+    # Link the directory: some clients skip a symlinked SKILL.md file.
     ".claude/skills/nyarlathotep" = {
       source = ./agents/skills/nyarlathotep;
       recursive = false;
     };
     ".agents/skills/nyarlathotep" = {
+      source = ./agents/skills/nyarlathotep;
+      recursive = false;
+    };
+    ".gemini/config/skills/nyarlathotep" = {
       source = ./agents/skills/nyarlathotep;
       recursive = false;
     };
@@ -168,6 +178,10 @@ in
       recursive = false;
     };
     ".agents/skills/pr-review" = {
+      source = ./agents/skills/pr-review;
+      recursive = false;
+    };
+    ".gemini/config/skills/pr-review" = {
       source = ./agents/skills/pr-review;
       recursive = false;
     };
@@ -187,9 +201,9 @@ in
       name = "${directory}/${name}";
       value = {
         source = ./agents/skills/tstack + "/${name}";
-        # Codex discovers directory symlinks but skips symlinked SKILL.md files.
+        # Link the directory: some clients skip a symlinked SKILL.md file.
         recursive = false;
       };
-    }) [ ".claude/skills" ".agents/skills" ]
+    }) [ ".claude/skills" ".agents/skills" ".gemini/config/skills" ]
   ) tstackSkills);
 }

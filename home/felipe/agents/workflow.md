@@ -39,8 +39,8 @@ Do not invent test results or treat pending CI as passed.
 
 Every PR gets an independent review before you report it ready. After
 opening a PR, and after each push that changes its code, run the `pr-review`
-skill. It picks the reviewer from the model buckets and both subscriptions'
-weekly allowance, then posts its findings on the PR. Fix real findings,
+skill. It reviews with Fable, falls back to Neon when the Anthropic weekly
+allowance is low, and posts its findings on the PR. Fix real findings,
 answer the rest in the thread, and review again after pushing fixes. No
 review bot gates a PR, so wait on checks alone.
 

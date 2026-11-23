@@ -7,14 +7,14 @@ description: Review a pull request with an independent subscription model and po
 
 Every PR gets one independent review before it is reported ready. This is the
 review step that CodeRabbit and Greptile used to provide. It runs on the Claude
-and Codex subscriptions.
+and Google AI subscriptions.
 
 ## Run it
 
 From a checkout of the PR's repository (use this skill's absolute path):
 
 ```bash
-scripts/pr-review [PR number or URL] --builder <class that wrote the change>
+scripts/pr-review [PR number or URL]
 ```
 
 With no PR argument it reviews the current branch's PR. It reads the PR head
@@ -28,9 +28,7 @@ PR ready on an exit of `2`.
 
 Options:
 
-- `--builder opus` names the model class that wrote the change, so the same
-  class does not review its own work. Pass your own class.
-- `--job reasoning|product` overrides the automatic choice. The default is
+- `--job reasoning|product` sets what the reviewer looks for. The default is
   Product when most changed lines are UI files, otherwise Reasoning.
 - `--effort xhigh` raises effort for a change with serious consequences.
 - `--dry-run` prints the review without posting it.
@@ -40,13 +38,12 @@ Options:
 
 ## Which model reviews
 
-The script follows the model buckets. Reasoning prefers Astra, then Fable.
-Product prefers Fable, then Opus. Astra takes a Product review only when the
-Anthropic allowance is low or no Anthropic reviewer finishes. It reads the weekly allowance
-on both subscriptions first. A provider with 30% or less of its week left
-moves behind one with more, and a spent allowance goes last. If the chosen
-model fails, the next candidate runs. The posted review says which model ran
-and why. Do not pick a reviewer by hand to save usage; the script already
+Fable reviews at high effort, in a fresh session, whoever built the change.
+Neon at xhigh effort is the fallback. The script reads the weekly allowance
+on both subscriptions first. When 30% or less of the Anthropic week is left,
+Neon moves ahead of Fable unless the Google allowance is lower still, and a
+spent allowance goes last. If the chosen model fails, the other one runs. The
+posted review says which model ran and why. Do not pick a reviewer by hand to save usage; the script already
 weighs it.
 
 `scripts/agent-usage` prints the same weekly readings as JSON. Use it when
@@ -77,5 +74,7 @@ connected accounts. PR content can still
 carry instructions aimed at a model, so the script refuses PRs from forks
 unless `--allow-fork` is passed. Use that only for an author you trust.
 
-The script needs `gh`, `git`, Python 3, and a signed-in `claude` or `codex`.
+The script needs `gh`, `git`, Python 3, and a signed-in `claude` or `agy`.
+Neon runs through `agy` with deny rules for writes, commands, web access, and
+MCP tools, and with paid AI credits off.
 Tests: `python3 scripts/test_pr_review.py`.

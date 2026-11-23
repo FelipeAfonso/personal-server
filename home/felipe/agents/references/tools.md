@@ -8,10 +8,11 @@ dependencies. A missing menu entry does not prove that the tool is absent.
 For skills, read known paths directly and follow symlinks when searching:
 `rg --files --hidden --follow`.
 
-For Codex MCP configuration, inspect `codex mcp list`, `~/.codex/config.toml`,
-and any repository `.codex/config.toml`. A `.mcp.json` or `.cursor/mcp.json`
-entry alone does not configure Codex. For other clients, inspect their actual
-configuration rather than assuming it matches another client's.
+For Antigravity MCP configuration, inspect `agy mcp list` and
+`~/.gemini/config/mcp_config.json`. A `.mcp.json` or
+`.cursor/mcp.json` entry alone does not configure Antigravity. For other
+clients, inspect their actual configuration rather than assuming it matches
+another client's.
 
 A task that requires an existing integration includes repairing its local
 configuration from the repository's declaration. Preserve unrelated settings.

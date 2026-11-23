@@ -1,37 +1,32 @@
 # Model buckets and expected usage
 
-This describes Felipe's agreed routing policy as of September 24, 2026.
+This describes Felipe's agreed routing policy as of November 23, 2026.
 Buckets name model classes; each resolves to the newest available version.
 Usage estimates follow the assignments; they are not measured calls, tokens,
-costs, or vendor capability claims. Actual usage depends on task mix, available
-allowance, and task-specific model suitability.
+costs, or vendor capability claims. Actual usage depends on task mix and
+available allowance.
 
-| Bucket | Preferred | Alternate | Typical work |
-| --- | --- | --- | --- |
-| Reasoning | Astra, high | Fable, high | Architecture, high-level thinking, hard debugging, investigations, substantive technical review |
-| Implementation | Opus, medium | Sol, high | Substantial coding, refactors, tests once design decisions are settled |
-| Product | Fable, high | Opus, xhigh | UI implementation, UX, product copy, API design, user-facing review |
-| Routine | Sonnet, medium | Terra, medium | Small implementations and transformations with settled instructions and acceptance criteria |
+| Bucket | Model | Typical work |
+| --- | --- | --- |
+| Reasoning | Fable, high | Architecture, high-level thinking, hard debugging, investigations, substantive technical review |
+| Product | Fable, high | UI implementation, UX, product copy, API design, user-facing review |
+| Implementation | Neon, high | Substantial coding, refactors, tests once design decisions are settled |
+| Routine | Neon, medium | Small implementations and transformations with settled instructions and acceptance criteria |
 
-Opus is expected to carry most implementation volume under normal conditions.
-Sol takes substantial coding work when it is more suitable or usage pressure
-favors its pool. Astra handles difficult decisions and review; Fable carries
-Product work and more Reasoning work when Astra's weekly allowance runs low.
-Sonnet and Terra handle bounded execution. Sonnet wrappers may use low effort.
-Luna has no active assignment or automatic fallback role.
+Neon is expected to carry most of the volume: implementation, routine
+execution, and low-effort wrappers. Fable handles difficult decisions,
+Product work, and review. OpenAI models, Opus, and Sonnet left the catalog
+on November 23, 2026.
 
-Routine never takes high-level thinking or substantive review. It returns
-unresolved decisions to Reasoning. Reviews use Reasoning or Product as needed;
-two bucket members do not imply two mandatory reviewers.
+Neon never takes high-level thinking. It returns unresolved decisions to
+Reasoning. Its one review role is the `pr-review` fallback at xhigh effort,
+used when 30% or less of the Anthropic weekly allowance remains or Fable
+does not finish.
 
-Astra is preferred above 30% weekly allowance remaining. At 30% or below,
-lean toward Fable when comparably suited. This threshold is soft: use a clearly
-superior model regardless of remaining allowance unless the user explicitly
-restricts it. Actual quota exhaustion requires an alternate or waiting.
-Automatic paid overages remain disabled.
+Each model has its own subscription and weekly window. Actual quota
+exhaustion means waiting, or Fable taking Implementation work that cannot
+wait. Automatic paid overages and AI credits remain disabled.
 
-Effort follows the bucket, so Opus uses medium for Implementation and xhigh
-for Product. Usage pressure guides selection; task suitability has priority.
 Shared quota pools and stale readings need explicit handling. See
 [models.md](models.md) for selection rules and [delegation.md](delegation.md)
 for client mechanics. PR review is routed automatically by the `pr-review`
