@@ -35,6 +35,7 @@ class PolicyTests(unittest.TestCase):
         settings = json.loads(repair[repair.index("--settings") + 1])
         for rule in ("command(*)", "read_url(*)", "execute_url(*)", "mcp(*)"):
             self.assertIn(rule, settings["permissions"]["deny"])
+        self.assertIn("write_file(.git/)", settings["permissions"]["deny"])
         self.assertFalse(settings["useG1Credits"])
         self.assertEqual(settings["modelProvider"], "")
         self.assertNotIn("--dangerously-skip-permissions", repair)
@@ -49,6 +50,8 @@ class PolicyTests(unittest.TestCase):
         repair = runner.sandbox_properties("felipe", "repair", "/work/run", 60, ["127.0.0.0/8"])
         review = runner.sandbox_properties("felipe", "review", "/work/run", 60, ["127.0.0.0/8"])
         self.assertIn("/work/run", repair["ReadWritePaths"].split())
+        self.assertEqual(repair["ReadOnlyPaths"], "/work/run/.git")
+        self.assertEqual(review["ReadOnlyPaths"], "/work/run/.git")
         self.assertNotIn("/work/run", review["ReadWritePaths"].split())
         self.assertIn("-/home/felipe/.gemini/antigravity-cli", repair["ReadWritePaths"].split())
         self.assertIn("-/home/felipe/.claude", review["ReadWritePaths"].split())

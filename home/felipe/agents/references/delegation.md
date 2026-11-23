@@ -39,16 +39,17 @@ the next argument as the prompt:
 
 ```sh
 agy --model <newest neon id for the effort> --output-format json \
-  --settings '{"permissions":{"deny":["write_file(*)","command(*)"]}}' \
-  -p "<self-contained prompt>"
+  --settings '{"useG1Credits":false,"permissions":{"deny":["write_file(*)","command(*)","read_url(*)","execute_url(*)","mcp(*)"]}}' \
+  -p "<self-contained prompt>" </dev/null
 ```
 
-That form is read-only. A headless run cannot answer permission prompts: an
+That form reads files only. A headless run cannot answer permission prompts: an
 action that needs approval is denied and can end the run with no answer. So
 state the access in `--settings`. For editing, use `--mode accept-edits` in an
 isolated checkout and allow the commands the task needs, for example
-`{"permissions":{"allow":["command(git)","command(npm test)"]}}`. Keep
-`"useG1Credits": false`. Never pass `--dangerously-skip-permissions`, and
+`{"useG1Credits":false,"permissions":{"allow":["command(git)","command(npm test)"]}}`.
+Always keep `"useG1Credits": false`, so a spent allowance stops the run
+instead of spending paid credits. Never pass `--dangerously-skip-permissions`, and
 never work around a permission failure.
 
 ## From Antigravity or OpenCode

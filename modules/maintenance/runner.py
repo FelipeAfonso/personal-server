@@ -34,7 +34,8 @@ AGY_SETTINGS = {
     "agentMode": "accept-edits", "toolPermission": "request-review",
     "useG1Credits": False, "modelProvider": "",
     "permissions": {"allow": ["read_file(*)"],
-                    "deny": ["command(*)", "read_url(*)", "execute_url(*)", "mcp(*)"]},
+                    "deny": ["command(*)", "read_url(*)", "execute_url(*)", "mcp(*)",
+                             "write_file(.git/)"]},
 }
 API_KEYS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 # Home paths each agent's CLI writes, and the other logins it has no use for.
@@ -56,6 +57,12 @@ if "NoNewPrivs:\\t1" not in open("/proc/self/status").read():
 writable, checkout, *protected = sys.argv[1:]
 if os.access(checkout, os.W_OK) != (writable == "yes"):
     problems.append("checkout write access is wrong for this role")
+# The wrapper runs Git outside the sandbox, so no agent may touch its metadata.
+for root, directories, files in os.walk(os.path.join(checkout, ".git")):
+    for name in [".", *directories, *files]:
+        if os.access(os.path.join(root, name), os.W_OK):
+            problems.append("writable Git metadata: " + os.path.join(root, name))
+            break
 for path in protected:
     if os.access(path, os.R_OK) or os.access(path, os.W_OK):
         problems.append("accessible: " + path)
@@ -117,7 +124,12 @@ def agent_result(role, output):
 
 
 def sandbox_properties(user, role, checkout, budget, host_addresses):
-    """systemd properties that confine one agent. Only the repair may write the checkout."""
+    """systemd properties that confine one agent.
+
+    Only the repair may write the checkout, and never its .git directory: the
+    wrapper runs Git there unconfined, so a changed config or hook would run
+    outside the sandbox.
+    """
     home = f"/home/{user}"
     state = AGENT_STATE[role]
     writable = ([str(checkout)] if role == "repair" else []) \
@@ -130,6 +142,7 @@ def sandbox_properties(user, role, checkout, budget, host_addresses):
         "CapabilityBoundingSet": "", "RuntimeMaxSec": f"{budget}s", "KillMode": "control-group",
         "IPAddressDeny": " ".join(host_addresses),
         "ReadWritePaths": " ".join(writable),
+        "ReadOnlyPaths": f"{checkout}/.git",
         "InaccessiblePaths": " ".join(hidden) + " -/run/docker.sock -/run/user -/run/dbus "
                              "-/run/secrets -/etc/ssh -/nix/var/nix/daemon-socket",
     }
@@ -541,28 +554,33 @@ Run unslop on issue text. Report uncertainty as an issue.""", schema)
             self.validate()
             schema = {"type": "object", "properties": {
                 "passed": {"type": "boolean"},
+                "commit": {"type": "string"},
                 "issues": {"type": "array", "items": {"type": "string"}},
-            }, "required": ["passed", "issues"], "additionalProperties": False}
+            }, "required": ["passed", "commit", "issues"], "additionalProperties": False}
             for role in ("repair", "review"):
                 self.confinement(role)
             head = self.git("rev-parse", "HEAD")
-            task = f"""This is a read-only maintenance preflight, not a dependency update or approval.
-It checks only that you can sign in and read this checkout. Read .git/HEAD,
-resolve the branch it names under .git/refs/heads, and compare the commit with
-{head}. Do not edit files, contact any service, or launch other agents."""
+            # The agents are not told the commit, so only one that really read
+            # the checkout inside its sandbox can name it.
+            task = """This is a read-only maintenance preflight, not a dependency update or approval.
+It checks only that you can sign in and read this checkout. Read .git/HEAD and
+find the full commit id of the branch it names, under .git/refs/heads or in
+.git/packed-refs. Do not edit files, contact any service, or launch other agents."""
             reply = self.agent("repair", f"Implementation bucket, {self.models['repair']}.\n{task}\n"
-                               "Reply with the single word passed if the commits match.")
+                               "Reply with that commit id.")
             if self.git("status", "--porcelain") or self.git("rev-parse", "HEAD") != head:
                 raise MaintenanceError("The repair agent changed the checkout during preflight")
-            if "passed" not in reply.lower():
+            if head not in reply:
                 raise MaintenanceError(f"Repair agent preflight failed: {reply.strip()[-300:]}")
             output = self.agent("review", f"""Reasoning bucket, {self.models['review']} at high effort.
 {task}
-Return passed=true with issues=[] only when the commits match. This output
-is only a runtime/authentication check and does not authorize any deployment.""", schema)
+Return the commit id as commit. Return passed=true with issues=[] only when
+you read it yourself. This output is only a runtime/authentication check and
+does not authorize any deployment.""", schema)
             report = json.loads(output)
             (self.run_dir / "preflight-agent.json").write_text(json.dumps(report, indent=2))
-            if report.get("passed") is not True or report.get("issues") != []:
+            if report.get("passed") is not True or report.get("issues") != [] \
+                    or report.get("commit") != head:
                 raise MaintenanceError("Sandboxed agent preflight failed; see preflight-agent.json")
             self.t3_state()
             self.status("preflight-passed", system=str(self.candidate))

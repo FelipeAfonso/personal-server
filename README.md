@@ -124,7 +124,9 @@ python3 scripts/sync-agent-prompts.py ../personal-desktop
 ```
 
 The check exits with status 1 if a shared file differs or is missing. To copy
-updates, switch the target repo to a task branch and add `--write`. The script
+updates, switch the target repo to a task branch and add `--write`. That also
+removes files this repo retired, such as `codex-global.md` and the `sol-loop`
+skill; the target's own install script may still name them. The script
 refuses to overwrite uncommitted changes in the target files. It also syncs
 the planning skill's instructions, all eight vendored tstack skills, the
 nyarlathotep and pr-review skills, and shared references. Machine notes and `references/rlyeh.md` stay in their own repo.

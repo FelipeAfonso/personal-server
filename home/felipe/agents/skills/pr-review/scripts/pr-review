@@ -359,7 +359,8 @@ def run_agy(usage_module, model, effort, prompt, workdir):
          "--output-format", "json", "--json-schema", str(schema_file),
          "--print-timeout", f"{REVIEW_TIMEOUT}s",
          "-p=Read prompt.md in the current directory and follow it exactly."],
-        cwd=workdir, timeout=REVIEW_TIMEOUT + 60, check=False)
+        # An empty stdin: agy must not wait on, or read, the caller's own.
+        cwd=workdir, stdin="", timeout=REVIEW_TIMEOUT + 60, check=False)
     try:
         output = json.loads(result.stdout)
         if not isinstance(output, dict):

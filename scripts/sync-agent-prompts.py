@@ -31,6 +31,15 @@ def main():
         for path in sorted((source / "references").glob("*.md"))
         if path.name != "rlyeh.md"
     )
+    # Files this repo dropped stay behind in the target unless removed here.
+    retired = [Path("codex-global.md")] + [
+        path.relative_to(target / "agents")
+        for skill in ("skills/tstack", "skills/nyarlathotep", "skills/pr-review")
+        for path in sorted((target / "agents" / skill).rglob("*"))
+        if path.is_file() and "__pycache__" not in path.parts
+        and not (source / path.relative_to(target / "agents")).exists()
+    ]
+    retired = [name for name in retired if (target / "agents" / name).exists()]
     changed = []
     for name in files:
         dest = target / "agents" / name
@@ -40,7 +49,7 @@ def main():
         if (not dest.exists() or dest.read_bytes() != src.read_bytes()
                 or (dest.stat().st_mode & 0o111) != (src.stat().st_mode & 0o111)):
             changed.append(name)
-    if not changed:
+    if not changed and not retired:
         print("Shared agent files match.")
         return 0
     if args.write:
@@ -52,7 +61,7 @@ def main():
         branch = git("branch", "--show-current")
         if not branch or branch in {"main", "master", "dev"}:
             parser.error("switch the target repository to a task branch before writing")
-        paths = [str(Path("agents") / name) for name in changed]
+        paths = [str(Path("agents") / name) for name in changed + retired]
         if git("status", "--porcelain", "--", *paths):
             parser.error("target files have uncommitted changes; inspect them before syncing")
         for name in changed:
@@ -60,9 +69,14 @@ def main():
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source / name, dest)
             print(f"Updated agents/{name}")
+        for name in retired:
+            (target / "agents" / name).unlink()
+            print(f"Removed agents/{name}")
         return 0
     for name in changed:
         print(f"Different or missing: agents/{name}")
+    for name in retired:
+        print(f"Retired, to remove: agents/{name}")
     return 1
 
 
