@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Review a pull request with an independent subscription model and post the findings on GitHub. Use after opening a PR, after each push that changes its code, and when the user asks for a PR review.
+description: Review a pull request with an independent subscription model and post the findings on GitHub. Use after opening a PR, once after the fixes for its findings are all pushed, and when the user asks for a PR review.
 ---
 
 # PR review
@@ -58,7 +58,7 @@ usage affects any other model choice.
 
 Verify each finding against the source. Fix the real ones. Answer the rest
 in the thread with a written reason, using the `leaving-pr-comments` skill.
-After you push fixes, run the review once more. That follow-up gets the
+Push every fix first, then run the review once more. That follow-up gets the
 earlier threads and reports only blocker and major findings: defects the
 fixes introduced, or serious ones the first review missed. Fix what it finds,
 check those fixes yourself, and stop. The script does not review a third

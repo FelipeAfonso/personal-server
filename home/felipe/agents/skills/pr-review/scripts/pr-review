@@ -16,7 +16,8 @@ A PR gets at most two reviews: a full one, then one follow-up after fixes that
 reports only blocker and major findings. Later heads are not reviewed unless
 --force is passed. Fable runs at medium or high effort, never above.
 
-Exit status: 0 no findings, 1 findings to handle, 2 the review did not run.
+Exit status: 0 no findings, or the PR already had its two reviews and this
+head was skipped; 1 findings to handle; 2 the review did not run.
 """
 
 import argparse
@@ -407,9 +408,10 @@ def clean_review(review, severities=SEVERITIES):
         if not isinstance(item, dict) or not str(item.get("title") or "").strip() \
                 or not str(item.get("body") or "").strip():
             raise ReviewError("reviewer returned a finding without a title or body")
-        severity = item.get("severity") if item.get("severity") in SEVERITIES else "minor"
-        if severity not in severities:
-            continue  # a follow-up review keeps only what blocks the merge
+        known = item.get("severity") in SEVERITIES
+        severity = item["severity"] if known else "minor"
+        if known and severity not in severities:
+            continue  # a follow-up keeps what blocks the merge, and any unknown label
         try:
             line = int(item.get("line") or 0)
         except (TypeError, ValueError):
@@ -536,6 +538,22 @@ def earlier_reviews(slug, number, login):
     return reviewed_heads(json_stream(raw), login)
 
 
+def plan_round(heads, sha, bypass=False):
+    """(exit status to stop with, or None to review; whether it is a follow-up).
+
+    `heads` maps each reviewed head to its finding count. A head is reviewed
+    once and a PR gets MAX_ROUNDS reviewed heads, unless `bypass` is set.
+    """
+    follow_up = bool(set(heads) - {sha})
+    if bypass:
+        return None, follow_up
+    if sha in heads:
+        return (1 if heads[sha] else 0), follow_up
+    if len(heads) >= MAX_ROUNDS:
+        return 0, follow_up
+    return None, follow_up
+
+
 def reviewed_heads(reviews, login):
     heads = {}
     for item in reviews:
@@ -628,17 +646,16 @@ def main():
                                   "Pass --allow-fork to review it anyway")
             login = json.loads(gh_api("user"))["login"]
             heads = earlier_reviews(slug, number, login)
-            earlier = heads.get(sha)
-            if earlier is not None and not (args.force or args.dry_run):
-                print(f"PR #{number} head {sha[:7]} was already reviewed with {earlier} "
-                      f"finding{'s' if earlier != 1 else ''}; pass --force to review again.")
-                return 1 if earlier else 0
-            if len(heads) >= MAX_ROUNDS and not (args.force or args.dry_run):
+            stop, follow_up = plan_round(heads, sha, args.force or args.dry_run)
+            if stop is not None and sha in heads:
+                print(f"PR #{number} head {sha[:7]} was already reviewed with {heads[sha]} "
+                      f"finding{'s' if heads[sha] != 1 else ''}; pass --force to review again.")
+                return stop
+            if stop is not None:
                 print(f"PR #{number} already had its {MAX_ROUNDS} reviews, so head {sha[:7]} "
                       "is not reviewed. Check your own fixes and move on; pass --force "
                       "only if a fix was risky enough to need another look.")
-                return 0
-            follow_up = bool(set(heads) - {sha})
+                return stop
             git("fetch", "--quiet", "origin", f"refs/pull/{number}/head", cwd=root)
             git("fetch", "--quiet", "origin", pr["base"]["ref"], cwd=root)
             base = git("merge-base", git("rev-parse", "FETCH_HEAD", cwd=root), sha, cwd=root)

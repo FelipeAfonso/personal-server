@@ -191,6 +191,27 @@ class PostingTheReview(unittest.TestCase):
         self.assertIn("follow-up review (blocker and major findings only)", payload["body"])
         self.assertIn("{round_rule}", review.PROMPT)
 
+    def test_follow_up_keeps_a_finding_with_an_unknown_severity(self):
+        raw = {"summary": "s", "findings": [
+            {"path": "a", "line": 1, "severity": "critical", "title": "t", "body": "b"},
+            {"path": "a", "line": 2, "title": "t", "body": "b"}]}
+        kept = review.clean_review(raw, review.FOLLOW_UP_SEVERITIES)["findings"]
+        self.assertEqual([item["line"] for item in kept], [1, 2])
+
+    def test_plan_round(self):
+        one, two, three = "a" * 40, "b" * 40, "c" * 40
+        plan = review.plan_round
+        self.assertEqual(plan({}, one), (None, False))
+        self.assertEqual(plan({one: 2}, one), (1, False))
+        self.assertEqual(plan({one: 0}, one), (0, False))
+        self.assertEqual(plan({one: 2}, two), (None, True))
+        self.assertEqual(plan({one: 2, two: 1}, two), (1, True))
+        self.assertEqual(plan({one: 2, two: 1}, three), (0, True))
+        # --force and --dry-run review anyway; the only reviewed head stays a full review.
+        self.assertEqual(plan({one: 2}, one, bypass=True), (None, False))
+        self.assertEqual(plan({one: 2, two: 1}, two, bypass=True), (None, True))
+        self.assertEqual(plan({one: 2, two: 1}, three, bypass=True), (None, True))
+
     def test_reviewed_heads_counts_this_users_marked_reviews(self):
         def item(sha, count, user="felipe", commit=None):
             return {"body": review.MARKER.format(sha=sha, count=count),
