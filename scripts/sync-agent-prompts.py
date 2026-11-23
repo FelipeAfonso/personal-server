@@ -72,6 +72,11 @@ def main():
         for name in retired:
             (target / "agents" / name).unlink()
             print(f"Removed agents/{name}")
+            # Git drops the emptied directory; the install script would not.
+            parent = (target / "agents" / name).parent
+            while parent != target / "agents" and not any(parent.iterdir()):
+                parent.rmdir()
+                parent = parent.parent
         return 0
     for name in changed:
         print(f"Different or missing: agents/{name}")
